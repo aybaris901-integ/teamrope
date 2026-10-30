@@ -1,0 +1,4 @@
+// Public API of @branchguard/core.
+// All Git logic lives here. Functions return plain data objects:
+// no printing, no prompts, no VS Code APIs.
+export {};
