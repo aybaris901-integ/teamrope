@@ -130,11 +130,23 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation
     sentences.push(`You're on your own branch ${d.currentBranch}.`);
   }
 
-  sentences.push(
-    d.dirtyFiles.length === 0
-      ? "You have no unsaved changes."
-      : `You have ${plural(d.dirtyFiles.length, "unsaved file")}: ${listFiles(d.dirtyFiles)}.`,
-  );
+  const unsavedFiles = d.dirtyFiles.filter((file) => !d.conflictedFiles.includes(file));
+  if (d.conflictedFiles.length > 0) {
+    sentences.push(
+      `You have ${plural(d.conflictedFiles.length, "file")} with conflicts: ${listFiles(d.conflictedFiles)}.`,
+    );
+    if (unsavedFiles.length > 0) {
+      sentences.push(
+        `You also have ${plural(unsavedFiles.length, "other changed file")}: ${listFiles(unsavedFiles)}.`,
+      );
+    }
+  } else {
+    sentences.push(
+      unsavedFiles.length === 0
+        ? "You have no unsaved changes."
+        : `You have ${plural(unsavedFiles.length, "unsaved file")}: ${listFiles(unsavedFiles)}.`,
+    );
+  }
 
   if (!d.onMain && !d.detached) {
     if (d.aheadOfUpstream === null) {
@@ -159,7 +171,7 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation
     sentences.push(
       `${capitalize(mainBranch)} has ${plural(d.behindMain, "new commit")} you don't have yet.`,
     );
-  } else if (!d.onMain) {
+  } else if (!d.onMain && !d.inProgress) {
     sentences.push(`You're up to date with ${mainBranch}.`);
   }
 

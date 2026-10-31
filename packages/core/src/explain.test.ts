@@ -10,6 +10,7 @@ const base: Diagnosis = {
   detached: false,
   inProgress: null,
   dirtyFiles: [],
+  conflictedFiles: [],
   aheadOfUpstream: 0,
   behindUpstream: 0,
   behindMain: 0,
@@ -86,6 +87,21 @@ describe("explainDiagnosis", () => {
       });
       expect(summary.join(" ")).not.toMatch(/up to date with main|new commit|compare with/);
     }
+  });
+
+  test("mid-merge: names conflicted files and skips 'up to date with main'", () => {
+    const { summary } = explainDiagnosis({
+      ...base,
+      inProgress: "merge",
+      dirtyFiles: ["src/app.js", "README.md"],
+      conflictedFiles: ["src/app.js"],
+      nextAction: "finishOperation",
+    });
+    const text = summary.join(" ");
+    expect(text).toContain("You have 1 file with conflicts: src/app.js.");
+    expect(text).toContain("You also have 1 other changed file: README.md.");
+    expect(text).not.toContain("unsaved");
+    expect(text).not.toContain("up to date with main");
   });
 
   test("nothing to do", () => {

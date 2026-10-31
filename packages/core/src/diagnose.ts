@@ -22,6 +22,8 @@ export interface Diagnosis {
   inProgress: OperationInProgress | null;
   /** Uncommitted files, including untracked ones. */
   dirtyFiles: string[];
+  /** Files with unresolved conflicts (Git's unmerged list). Also in dirtyFiles. */
+  conflictedFiles: string[];
   /** Vs the branch's own remote branch. Null if it has none. */
   aheadOfUpstream: number | null;
   behindUpstream: number | null;
@@ -66,6 +68,7 @@ export async function diagnose(dir: string, mainBranch = "main"): Promise<Diagno
     detached: status.detached,
     inProgress: await operationInProgress(git, dir),
     dirtyFiles: status.files.map((file) => file.path),
+    conflictedFiles: status.conflicted,
     aheadOfUpstream: upstream ? await countCommits(git, `${upstream}..HEAD`) : null,
     behindUpstream: upstream ? await countCommits(git, `HEAD..${upstream}`) : null,
     behindMain: await countCommits(git, `HEAD..${originMain}`),

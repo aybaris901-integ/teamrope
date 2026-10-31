@@ -16,6 +16,7 @@ describe("diagnose", () => {
     expect(d.onMain).toBe(false);
     expect(d.detached).toBe(false);
     expect(d.dirtyFiles).toEqual([]);
+    expect(d.conflictedFiles).toEqual([]);
     expect(d.behindMain).toBe(0);
     expect(d.aheadOfUpstream).toBe(0);
     expect(d.behindUpstream).toBe(0);
@@ -58,6 +59,7 @@ describe("diagnose", () => {
     expect(d.nextAction).toBe("finishOperation");
     expect(d.currentBranch).toBe("frank/feature");
     expect(d.dirtyFiles).toContain("src/app.js");
+    expect(d.conflictedFiles).toEqual(["src/app.js"]);
   });
 
   describe("outside a repo", () => {
@@ -81,6 +83,7 @@ describe("pickNextAction", () => {
     detached: false,
     inProgress: null,
     dirtyFiles: [],
+    conflictedFiles: [],
     aheadOfUpstream: 0,
     behindUpstream: 0,
     behindMain: 0,
