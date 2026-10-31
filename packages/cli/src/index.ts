@@ -2,6 +2,7 @@
 // Thin CLI over @branchguard/core, used for manual testing.
 // No Git logic here: every command calls core.
 import path from "node:path";
+import { parseArgs } from "node:util";
 import { confirm, input } from "@inquirer/prompts";
 import {
   diagnose,
@@ -15,7 +16,10 @@ import {
 
 const USAGE = `Usage:
   branchguard diagnose [dir]   show where you stand
-  branchguard start [task]     start a new task on your own branch`;
+  branchguard start [task] [--name <name>] [--yes]
+                               start a new task on your own branch
+                               --name  your name for branch names (skips the question)
+                               --yes   don't ask anything, accept the defaults`;
 
 async function runDiagnose(dirArg: string | undefined): Promise<void> {
   const dir = path.resolve(dirArg ?? ".");
@@ -24,16 +28,35 @@ async function runDiagnose(dirArg: string | undefined): Promise<void> {
   console.log(next);
 }
 
-async function runStart(taskName: string | undefined): Promise<void> {
+interface StartFlags {
+  name?: string;
+  yes: boolean;
+}
+
+async function runStart(taskName: string | undefined, flags: StartFlags): Promise<void> {
+  // Prompts need a terminal; without one they would wait forever.
+  if (!flags.yes && !process.stdin.isTTY) {
+    console.error("Run in a terminal or pass --yes");
+    process.exitCode = 1;
+    return;
+  }
+
+  if (flags.name !== undefined && slugify(flags.name) === "") {
+    console.error("--name needs at least one letter or number.");
+    process.exitCode = 1;
+    return;
+  }
+
   const dir = process.cwd();
-  let plan = await planStartTask(dir, { taskName });
+  let plan = await planStartTask(dir, { taskName, memberName: flags.name });
   if (!plan.canRun) {
     console.log(explainStartTaskRefusal(plan).join(" "));
     process.exitCode = 1;
     return;
   }
 
-  if (plan.nameIsNew) {
+  // Ask only if the name is neither saved nor given.
+  if (plan.nameIsNew && flags.name === undefined && !flags.yes) {
     const memberName = await input({
       message: "What name should your branches start with?",
       default: plan.memberName,
@@ -46,7 +69,7 @@ async function runStart(taskName: string | undefined): Promise<void> {
 
   console.log("Here's what I'll do:");
   plan.steps.forEach((step, i) => console.log(`  ${i + 1}. ${step.description}`));
-  if (!(await confirm({ message: "Continue?", default: true }))) {
+  if (!flags.yes && !(await confirm({ message: "Continue?", default: true }))) {
     console.log("OK, nothing was changed.");
     return;
   }
@@ -62,9 +85,15 @@ async function main(args: string[]): Promise<void> {
     case "diagnose":
       await runDiagnose(rest[0]);
       break;
-    case "start":
-      await runStart(rest[0]);
+    case "start": {
+      const { values, positionals } = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: { name: { type: "string" }, yes: { type: "boolean", short: "y", default: false } },
+      });
+      await runStart(positionals[0], { name: values.name, yes: values.yes ?? false });
       break;
+    }
     default:
       console.error(USAGE);
       process.exitCode = 1;
