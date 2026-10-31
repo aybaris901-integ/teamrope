@@ -84,6 +84,49 @@ describe("planStartTask + executeStartTask", () => {
     expect(git(dir, "rev-parse", "HEAD")).toBe(originMain);
   });
 
+  test("clean start with an old local main: main is fast-forwarded, with a backup", async () => {
+    const dir = pg.clone("carol");
+    git(dir, "restore", "src/app.js"); // carol without her unsaved edit
+    const oldMain = git(dir, "rev-parse", "main");
+    const originMain = git(dir, "rev-parse", "origin/main");
+    expect(oldMain).not.toBe(originMain);
+
+    const plan = await planStartTask(dir);
+    expect(kinds(plan)).toEqual(["saveName", "createBranch", "fastForwardMain", "push"]);
+
+    const result = await executeStartTask(plan);
+    expect(result.ok).toBe(true);
+    expect(git(dir, "rev-parse", "main")).toBe(originMain);
+    expect(result.backups).toHaveLength(1);
+    expect(git(dir, "rev-parse", result.backups[0]?.ref ?? "")).toBe(oldMain);
+  });
+
+  test("main moved after planning: the fast-forward is skipped silently", async () => {
+    const dir = pg.clone("carol");
+    git(dir, "restore", "src/app.js");
+    const plan = await planStartTask(dir);
+    git(dir, "branch", "--force", "main", "HEAD"); // main changes behind the plan's back
+    const movedMain = git(dir, "rev-parse", "main");
+
+    const result = await executeStartTask(plan);
+    expect(result.ok).toBe(true);
+    expect(result.completed.map((step) => step.kind)).toEqual(["saveName", "createBranch", "push"]);
+    expect(git(dir, "rev-parse", "main")).toBe(movedMain);
+  });
+
+  test("clean start with a diverged local main: main is left alone", async () => {
+    const dir = pg.clone("bob");
+    git(dir, "switch", "--quiet", "-c", "bob/side"); // clean, off main; main is ahead 1
+    const oldMain = git(dir, "rev-parse", "main");
+
+    const plan = await planStartTask(dir);
+    expect(kinds(plan)).toEqual(["saveName", "createBranch", "push"]);
+
+    const result = await executeStartTask(plan);
+    expect(result.ok).toBe(true);
+    expect(git(dir, "rev-parse", "main")).toBe(oldMain);
+  });
+
   test("carol: refused, save first", async () => {
     const plan = await planStartTask(pg.clone("carol"));
     expect(plan.canRun).toBe(false);

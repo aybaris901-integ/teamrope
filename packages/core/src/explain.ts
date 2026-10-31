@@ -218,6 +218,8 @@ export function describeStartTaskStep(step: StartTaskStepData): string {
         : `Create your own branch ${step.branch} from the team's latest main and switch to it.`;
     case "moveMain":
       return "Back up your main, then move it back to match the team's main (your commits stay on your new branch).";
+    case "fastForwardMain":
+      return "Update your main to the team's latest main (nothing is lost).";
     case "push":
       return `Upload ${step.branch} to the team repo so everyone can see it.`;
   }
@@ -254,6 +256,8 @@ function explainDoneStep(step: StartTaskStep, plan: StartTaskPlan, result: Start
       const backup = result.backups.find((b) => b.of === plan.mainBranch)?.ref ?? "a backup ref";
       return `Moved your ${plan.mainBranch} back to match the team's. Your old ${plan.mainBranch} is backed up as ${backup}. To put it back: \`git branch -f ${plan.mainBranch} ${backup}\`.`;
     }
+    case "fastForwardMain":
+      return `Updated your ${plan.mainBranch} to the team's latest ${plan.mainBranch}.`;
     case "push": {
       const create = plan.steps.find((s) => s.kind === "createBranch");
       const unsaved = create?.kind === "createBranch" ? create.carriedFiles : 0;

@@ -37,6 +37,8 @@ export type StartTaskStep = { description: string } & (
       carriedCommits: number;
     }
   | { kind: "moveMain"; from: string; to: string }
+  /** Clean start only. Skipped silently if it can't be done when executing. */
+  | { kind: "fastForwardMain"; from: string; to: string }
   | { kind: "push"; branch: string }
 );
 
@@ -125,6 +127,28 @@ async function branchExists(git: SimpleGit, branch: string): Promise<boolean> {
   );
 }
 
+/** True if `ancestor` can be fast-forwarded to `descendant` (and they differ). */
+async function canFastForward(git: SimpleGit, ancestor: string, descendant: string): Promise<boolean> {
+  if (ancestor === descendant) return false;
+  try {
+    return (await git.raw(["merge-base", ancestor, descendant])).trim() === ancestor;
+  } catch {
+    return false;
+  }
+}
+
+/** True if `branch` is checked out in a worktree other than `dir`'s. */
+async function checkedOutElsewhere(git: SimpleGit, branch: string): Promise<boolean> {
+  const top = (await git.revparse(["--show-toplevel"])).trim();
+  const list = await git.raw(["worktree", "list", "--porcelain"]);
+  let worktree = "";
+  for (const line of list.split("\n")) {
+    if (line.startsWith("worktree ")) worktree = line.slice("worktree ".length);
+    if (line === `branch refs/heads/${branch}` && worktree !== top) return true;
+  }
+  return false;
+}
+
 /** `base`, or `base-2`, `base-3`, ... whichever is free locally and on origin. */
 async function freeBranchName(git: SimpleGit, base: string): Promise<string> {
   if (!(await branchExists(git, base))) return base;
@@ -197,6 +221,14 @@ export async function planStartTask(
   if (carry && localMain && localMain !== originMain) {
     steps.push(withDescription({ kind: "moveMain", from: localMain, to: originMain }));
   }
+  if (
+    !carry &&
+    localMain &&
+    (await canFastForward(git, localMain, originMain)) &&
+    !(await checkedOutElsewhere(git, mainBranch))
+  ) {
+    steps.push(withDescription({ kind: "fastForwardMain", from: localMain, to: originMain }));
+  }
   steps.push(withDescription({ kind: "push", branch }));
 
   return {
@@ -251,7 +283,8 @@ async function runStep(
         step.carry ? ["switch", "-c", step.branch] : ["switch", "-c", step.branch, step.startPoint],
       );
       return;
-    case "moveMain": {
+    case "moveMain":
+    case "fastForwardMain": {
       const mainRef = `refs/heads/${plan.mainBranch}`;
       if ((await currentBranch(git)) === plan.mainBranch) {
         throw new Error(`Still on ${plan.mainBranch}, so it can't be moved safely.`);
@@ -292,6 +325,8 @@ export async function executeStartTask(plan: StartTaskPlan): Promise<StartTaskRe
       await runStep(git, plan, step, result.backups);
       result.completed.push(step);
     } catch (error) {
+      // Updating main on a clean start is a bonus: skip it silently.
+      if (step.kind === "fastForwardMain") continue;
       result.failedStep = step;
       if (step.kind === "push") {
         result.pushProblem = remoteProblemFromError(error);
