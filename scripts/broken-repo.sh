@@ -23,11 +23,17 @@ ORIGIN="$PLAYGROUND/origin.git"
 export GIT_CONFIG_GLOBAL=/dev/null
 export GIT_CONFIG_NOSYSTEM=1
 
-# Only ever delete the playground folder inside this repo.
-if [[ "$PLAYGROUND" != "$ROOT/playground" || -z "$ROOT" ]]; then
-  echo "Refusing to delete unexpected path: $PLAYGROUND" >&2
+# Only ever delete the playground folder inside this repo: make sure ROOT
+# really is the branchguard repo before touching anything.
+refuse() {
+  echo "Refusing to delete $PLAYGROUND: $1" >&2
   exit 1
-fi
+}
+[[ -n "$ROOT" ]] || refuse "repo root is empty"
+[[ "$ROOT" != "/" ]] || refuse "repo root is /"
+[[ "$ROOT" != "$(cd "$HOME" && pwd)" ]] || refuse "repo root is your home folder"
+[[ -f "$ROOT/CLAUDE.md" ]] || refuse "$ROOT/CLAUDE.md not found"
+[[ -f "$ROOT/scripts/broken-repo.sh" ]] || refuse "$ROOT/scripts/broken-repo.sh not found"
 rm -rf "$PLAYGROUND"
 mkdir -p "$PLAYGROUND"
 
