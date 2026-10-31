@@ -47,12 +47,20 @@ If the repo is in an unexpected state (mid-merge, mid-rebase, detached HEAD), st
 When in doubt, do less and explain more.
 Testing
 Every core function gets vitest tests that run against real repos in ./playground (built by scripts/broken-repo.sh), not mocks of Git.
-The playground has a bare origin and clones alice, bob, carol in different broken states. When adding a feature, add the broken state that exercises it.
-Run bash scripts/broken-repo.sh before tests if the playground is missing or stale.
+The playground has a bare origin.git (main: Add README, Add app, Add config, Add API URL to config) and these clones:
+
+alice: on alice/feature from latest main, one pushed commit, clean, up to date.
+bob: on main with one local commit that was never pushed.
+carol: on carol/feature, branched before main's last commit (1 behind), uncommitted edit to src/app.js on the line alice changed.
+eve: on eve/feature, clean, but origin points to a missing path, so fetch fails.
+frank: on frank/feature, stuck mid-merge of alice/feature with a conflict in src/app.js.
+
+When adding a feature, add the broken state that exercises it.
+npm test rebuilds the playground automatically (vitest globalSetup) and runs with a temp HOME, so your global Git config doesn't affect tests. Run bash scripts/broken-repo.sh by hand to inspect the clones.
 Commands
 npm install
 bash scripts/broken-repo.sh   # rebuild test playground
-npm test                      # vitest across workspaces
+npm test                      # vitest across workspaces (rebuilds playground first)
 npm run build
 
 Update this section when scripts change.
