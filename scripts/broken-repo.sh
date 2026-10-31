@@ -15,6 +15,9 @@
 #                          (started coding on main)
 #   playground/gina        on gina/feature (pushed), with an edited README.md,
 #                          a new .env holding a fake API key and a node_modules/
+#   playground/hank        on hank/feature (pushed), branched before main's last
+#                          commit; his commit adds a line to src/config.js at the
+#                          same spot as main's "Add API URL to config" (by alice)
 #
 # Safe to re-run: deletes ./playground and rebuilds it from scratch.
 
@@ -92,8 +95,20 @@ printf 'body { margin: 0; }\n' > "$PLAYGROUND/carol/src/styles.css"
 commit_as carol "Add styles"
 git -C "$PLAYGROUND/carol" push --quiet -u origin carol/feature
 
-# --- main moves forward (carol is now behind) -------------------------------
+# --- hank: changes the same config lines main is about to change -----------
 
+clone_as hank
+git -C "$PLAYGROUND/hank" switch --quiet -c hank/feature
+printf 'export const config = {\n  debug: false,\n  apiUrl: "https://hank.example.com",\n};\n' \
+  > "$PLAYGROUND/hank/src/config.js"
+commit_as hank "Point config at hank's server"
+git -C "$PLAYGROUND/hank" push --quiet -u origin hank/feature
+
+# --- main moves forward (carol and hank are now behind) ---------------------
+
+# Authored by alice, so conflict messages can name a teammate.
+git -C "$PLAYGROUND/seed" config user.name alice
+git -C "$PLAYGROUND/seed" config user.email alice@example.com
 printf 'export const config = {\n  debug: false,\n  apiUrl: "http://localhost:3000",\n};\n' \
   > "$PLAYGROUND/seed/src/config.js"
 commit_as seed "Add API URL to config"
@@ -168,3 +183,4 @@ echo "  eve:   eve/feature, clean, origin unreachable"
 echo "  frank: frank/feature, stuck mid-merge with a conflict in src/app.js"
 echo "  dave:  on main, up to date, uncommitted edit in src/app.js"
 echo "  gina:  gina/feature, edited README.md, new .env with a fake key, node_modules/"
+echo "  hank:  hank/feature, behind main, his pushed commit conflicts with main in src/config.js"

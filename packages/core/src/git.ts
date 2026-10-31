@@ -187,6 +187,12 @@ export async function createBackupRef(
   return ref;
 }
 
+/** True if a push was rejected because the remote branch has commits we don't have. */
+export function isPushRejected(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /\[rejected\]|non-fast-forward|fetch first|Updates were rejected/i.test(message);
+}
+
 /** Turns an error from a fetch or push into a RemoteProblem. */
 export function remoteProblemFromError(error: unknown): RemoteProblem {
   if (error instanceof GitPluginError && error.plugin === "timeout") {

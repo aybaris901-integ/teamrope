@@ -19,6 +19,8 @@ export {
   explainSaveRefusal,
   explainSaveResult,
   explainTrackedSecrets,
+  explainSyncRefusal,
+  explainSyncResult,
   riskyFileQuestion,
   secretIgnoreQuestion,
   type Explanation,
@@ -54,3 +56,14 @@ export {
   type SaveStep,
 } from "./save.js";
 export { findRiskyFiles, type ChangedFile, type RiskyFile, type SecretReason } from "./risky-files.js";
+export {
+  executeSync,
+  planSync,
+  type DryRunMethod,
+  type SyncConflict,
+  type SyncOptions,
+  type SyncPlan,
+  type SyncRefusal,
+  type SyncResult,
+  type SyncStep,
+} from "./sync.js";

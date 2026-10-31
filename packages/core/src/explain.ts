@@ -9,6 +9,7 @@ import type {
   StartTaskStepData,
 } from "./start-task.js";
 import { willIgnore, type SavePlan, type SaveResult, type SaveStepData } from "./save.js";
+import type { SyncPlan, SyncResult, SyncStepData } from "./sync.js";
 import type { RiskyFile, SecretReason } from "./risky-files.js";
 
 const MAX_LISTED_FILES = 5;
@@ -337,8 +338,13 @@ export function riskyFileQuestion(risky: RiskyFile): {
   }
 }
 
+/** "a", "a and b", "a, b and c". */
+function listWords(words: string[]): string {
+  return words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
+}
+
 function describeIgnoreEntries(entries: string[]): string {
-  return entries.length === 1 ? (entries[0] ?? "") : `${entries.slice(0, -1).join(", ")} and ${entries.at(-1)}`;
+  return listWords(entries);
 }
 
 /** One plain-English line saying what a Save step will do. */
@@ -443,6 +449,81 @@ export function explainSaveResult(plan: SavePlan, result: SaveResult): string[] 
     lines.push(
       `Saved on this computer only, because the team repo's copy of ${plan.branch} has commits you don't have. Sync, then Save again to upload.`,
     );
+  }
+  return lines;
+}
+
+// --- Sync ------------------------------------------------------------------
+
+/** One plain-English line saying what a Sync step will do. */
+export function describeSyncStep(step: SyncStepData): string {
+  switch (step.kind) {
+    case "merge":
+      return `Back up ${step.branch}, then bring in ${plural(step.commits, "new commit")} from main (a merge: Git combines main's changes with yours).`;
+    case "upload":
+      return `Upload ${step.branch} to the team repo.`;
+  }
+}
+
+/** Why Sync won't run: refused, already up to date, or a predicted conflict. */
+export function explainSyncRefusal(plan: SyncPlan): string[] {
+  if (plan.upToDate) return [`You already have everything from ${plan.mainBranch}.`];
+  if (plan.conflicts.length > 0) {
+    return [
+      `Syncing now would cause a conflict: ${plan.mainBranch} changed the same lines you did. I didn't change anything.`,
+      ...plan.conflicts.map((conflict) =>
+        conflict.authors.length > 0
+          ? `${listWords(conflict.authors)} changed the same part of ${conflict.path}. Talk to them before syncing.`
+          : `${conflict.path} was also changed on ${plan.mainBranch}. Find out who changed it before syncing.`,
+      ),
+    ];
+  }
+  switch (plan.refusal) {
+    case "saveFirst":
+      return [`You have unsaved changes. Save first, then Sync.`];
+    case "noIdentity":
+      return [
+        "Git doesn't know your name and email yet, and a merge records who made it.",
+        'Run `git config --global user.name "Your Name"` and `git config --global user.email you@example.com`, then Sync again.',
+      ];
+    case "noMainOnRemote":
+      return [`The team repo has no ${plan.mainBranch} branch to sync with yet.`];
+    default: {
+      const { summary, next } = explainDiagnosis(plan.diagnosis, plan.mainBranch);
+      return ["I can't sync right now.", ...summary, next];
+    }
+  }
+}
+
+/** What Sync did, and what went wrong if anything. */
+export function explainSyncResult(plan: SyncPlan, result: SyncResult): string[] {
+  const backup = result.backups[0]?.ref ?? "a backup ref";
+  const lines = result.completed.map((step) =>
+    step.kind === "merge"
+      ? `Backed up ${step.branch} as ${backup}, then merged ${plural(step.commits, "new commit")} from ${plan.mainBranch}.`
+      : `Uploaded ${step.branch} to the team repo.`,
+  );
+  const reason = endSentence(result.error ?? "unknown error");
+
+  if (result.failedStep?.kind === "merge") {
+    lines.push(
+      result.restored
+        ? `The merge failed, so I put ${plan.branch} back exactly as it was. Reason: ${reason}`
+        : `The merge failed and I couldn't put ${plan.branch} back by myself. Your work is safe in ${backup}. Ask your captain to run \`git merge --abort\` and \`git reset --keep ${backup}\`.`,
+    );
+  } else if (result.pushRejected) {
+    lines.push(
+      `Didn't upload: the team repo's copy of ${plan.branch} has commits you don't have. The merge is saved on this computer.`,
+      "Ask your captain how to combine the two copies of your branch.",
+    );
+  } else if (result.pushProblem) {
+    const [meaning, whatToDo] = explainRemoteProblem(result.pushProblem);
+    lines.push(
+      `The merge is saved only on this computer: uploading failed. ${meaning}`,
+      `${whatToDo} Then Save to upload.`,
+    );
+  } else if (result.failedStep) {
+    lines.push(`I stopped before this step: ${result.failedStep.description} Reason: ${reason}`, "Nothing was changed.");
   }
   return lines;
 }

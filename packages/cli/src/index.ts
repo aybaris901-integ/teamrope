@@ -15,6 +15,10 @@ import {
   explainSaveResult,
   explainStartTaskRefusal,
   explainStartTaskResult,
+  explainSyncRefusal,
+  explainSyncResult,
+  executeSync,
+  planSync,
   planSave,
   planStartTask,
   riskyFileQuestion,
@@ -32,7 +36,8 @@ const USAGE = `Usage:
   branchguard save [-m <message>] [--name <name>] [--yes]
                                commit your work and upload it to your own branch
                                -m      commit message (default: made from the file names)
-                               --yes   accept the defaults: risky files are left out`;
+                               --yes   accept the defaults: risky files are left out
+  branchguard sync [--yes]     bring the latest main into your branch (only if it merges cleanly)`;
 
 async function runDiagnose(dirArg: string | undefined): Promise<void> {
   const dir = path.resolve(dirArg ?? ".");
@@ -154,6 +159,20 @@ async function runSave(flags: PromptFlags & { message?: string }): Promise<void>
   if (!result.ok) process.exitCode = 1;
 }
 
+async function runSync(flags: PromptFlags): Promise<void> {
+  if (!checkPromptFlags(flags)) return;
+  const plan = await planSync(process.cwd());
+  if (!plan.canRun) {
+    console.log(explainSyncRefusal(plan).join(" "));
+    if (!plan.upToDate) process.exitCode = 1;
+    return;
+  }
+  if (!(await confirmPlan(plan.steps.map((step) => step.description), [], flags))) return;
+  const result = await executeSync(plan);
+  for (const line of explainSyncResult(plan, result)) console.log(line);
+  if (!result.ok) process.exitCode = 1;
+}
+
 async function main(args: string[]): Promise<void> {
   const [command, ...rest] = args;
   switch (command) {
@@ -179,6 +198,14 @@ async function main(args: string[]): Promise<void> {
         },
       });
       await runSave({ message: values.message, name: values.name, yes: values.yes ?? false });
+      break;
+    }
+    case "sync": {
+      const { values } = parseArgs({
+        args: rest,
+        options: { yes: { type: "boolean", short: "y", default: false } },
+      });
+      await runSync({ yes: values.yes ?? false });
       break;
     }
     default:

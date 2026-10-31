@@ -7,6 +7,7 @@ import { diagnose, type Diagnosis } from "./diagnose.js";
 import { describeSaveStep } from "./explain.js";
 import {
   currentBranch,
+  isPushRejected,
   openRepo,
   readConfig,
   remoteProblemFromError,
@@ -102,7 +103,6 @@ export interface SaveResult {
 
 const GITIGNORE = ".gitignore";
 const PATHSPEC_CHUNK = 200;
-const PUSH_REJECTED = /\[rejected\]|non-fast-forward|fetch first|Updates were rejected/i;
 
 /** "Update a", "Update a and b", "Update a and 3 other files". */
 export function commitMessageFor(files: string[]): string {
@@ -336,8 +336,7 @@ export async function executeSave(plan: SavePlan): Promise<SaveResult> {
       result.failedStep = step;
       result.error = shortError(error);
       if (step.kind === "upload") {
-        const message = error instanceof Error ? error.message : String(error);
-        if (PUSH_REJECTED.test(message)) result.pushRejected = true;
+        if (isPushRejected(error)) result.pushRejected = true;
         else result.pushProblem = remoteProblemFromError(error);
       }
       return result;
