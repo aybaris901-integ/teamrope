@@ -19,6 +19,7 @@ export {
   explainSaveRefusal,
   explainSaveResult,
   riskyFileQuestion,
+  secretIgnoreQuestion,
   type Explanation,
 } from "./explain.js";
 export { BlockedEnvVarError, NotAGitRepoError } from "./git.js";

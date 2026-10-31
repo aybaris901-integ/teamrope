@@ -6,7 +6,8 @@ import path from "node:path";
 export type SecretReason = "fileName" | "awsKey" | "githubToken" | "apiKey" | "privateKey";
 
 export type RiskyFile =
-  | { kind: "secret"; path: string; reason: SecretReason }
+  /** `tracked`: already committed before, so it's in the repo history. */
+  | { kind: "secret"; path: string; reason: SecretReason; tracked: boolean }
   /** A folder of generated files, e.g. "node_modules/" or "web/dist/". */
   | { kind: "generated"; path: string; fileCount: number }
   | { kind: "large"; path: string; sizeBytes: number };
@@ -111,7 +112,7 @@ export function findRiskyFiles(repoRoot: string, files: ChangedFile[]): RiskyFil
       continue;
     }
     const reason = secretByContent(fullPath) ?? (secretByName(file.path) ? "fileName" : null);
-    if (reason) risky.push({ kind: "secret", path: file.path, reason });
+    if (reason) risky.push({ kind: "secret", path: file.path, reason, tracked: !file.untracked });
   }
 
   for (const [folder, fileCount] of generated) {

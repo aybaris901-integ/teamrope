@@ -18,6 +18,7 @@ import {
   planSave,
   planStartTask,
   riskyFileQuestion,
+  secretIgnoreQuestion,
   slugify,
   type SavePlan,
 } from "@branchguard/core";
@@ -105,15 +106,23 @@ async function runStart(taskName: string | undefined, flags: PromptFlags): Promi
   if (!result.ok) process.exitCode = 1;
 }
 
+async function ask(question: string, defaultAnswer: boolean, yes: boolean): Promise<boolean> {
+  return yes ? defaultAnswer : confirm({ message: question, default: defaultAnswer });
+}
+
 /** Asks about each risky file (or takes the safe defaults with --yes). */
 async function askAboutRiskyFiles(plan: SavePlan, yes: boolean): Promise<SavePlan> {
-  const choices: Record<string, boolean> = {};
+  const include: Record<string, boolean> = {};
+  const ignore: Record<string, boolean> = {};
   for (const risky of plan.risky) {
     const { question, defaultAnswer, yesIncludes } = riskyFileQuestion(risky);
-    const answer = yes ? defaultAnswer : await confirm({ message: question, default: defaultAnswer });
-    choices[risky.path] = answer === yesIncludes;
+    include[risky.path] = (await ask(question, defaultAnswer, yes)) === yesIncludes;
+    if (!include[risky.path] && plan.ignorableSecrets.includes(risky.path)) {
+      const follow = secretIgnoreQuestion(risky.path);
+      ignore[risky.path] = await ask(follow.question, follow.defaultAnswer, yes);
+    }
   }
-  return applySaveChoices(plan, choices);
+  return applySaveChoices(plan, include, ignore);
 }
 
 async function runSave(flags: PromptFlags & { message?: string }): Promise<void> {

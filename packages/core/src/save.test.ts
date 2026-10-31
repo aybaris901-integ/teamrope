@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { copyPlayground, git, type PlaygroundCopy } from "../test/playground-copy.js";
@@ -59,7 +59,7 @@ describe("planSave + executeSave", () => {
     const dir = pg.clone("gina");
     const plan = await planSave(dir);
     expect(plan.risky).toEqual([
-      { kind: "secret", path: ".env", reason: "apiKey" },
+      { kind: "secret", path: ".env", reason: "apiKey", tracked: false },
       { kind: "generated", path: "node_modules/", fileCount: 2 },
     ]);
     // Defaults = what --yes does.
@@ -72,10 +72,25 @@ describe("planSave + executeSave", () => {
       ".gitignore",
       "README.md",
     ]);
-    expect(readFileSync(path.join(dir, ".gitignore"), "utf8")).toBe("node_modules/\n");
-    // .env is still there, untracked; node_modules is ignored now.
-    expect(git(dir, "status", "--porcelain")).toBe("?? .env");
+    expect(readFileSync(path.join(dir, ".gitignore"), "utf8")).toBe(".env\nnode_modules/\n");
+    // .env is still on disk, but both are ignored now.
+    expect(existsSync(path.join(dir, ".env"))).toBe(true);
+    expect(git(dir, "status", "--porcelain")).toBe("");
     expect(explainSaveResult(plan, result).join(" ")).toContain("Uploaded your work to gina/feature");
+  });
+
+  test("gina: leaving the secret out but not ignoring it", async () => {
+    const plan = applySaveChoices(await planSave(pg.clone("gina")), {}, { ".env": false });
+    expect(plan.steps[0]).toMatchObject({ kind: "ignore", entries: ["node_modules/"] });
+  });
+
+  test("an already-ignored secret isn't offered for .gitignore", async () => {
+    const dir = pg.clone("gina");
+    writeFileSync(path.join(dir, ".git", "info", "exclude"), ".env\n");
+    writeFileSync(path.join(dir, "deploy.key"), "x\n");
+    const plan = await planSave(dir);
+    expect(plan.risky.map((r) => r.path)).toContain("deploy.key");
+    expect(plan.ignorableSecrets).toEqual(["deploy.key"]);
   });
 
   test("gina: answering yes to the secret question includes it", async () => {

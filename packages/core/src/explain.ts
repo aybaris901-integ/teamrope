@@ -8,7 +8,7 @@ import type {
   StartTaskStep,
   StartTaskStepData,
 } from "./start-task.js";
-import type { SavePlan, SaveResult, SaveStepData } from "./save.js";
+import { willIgnore, type SavePlan, type SaveResult, type SaveStepData } from "./save.js";
 import type { RiskyFile, SecretReason } from "./risky-files.js";
 
 const MAX_LISTED_FILES = 5;
@@ -355,15 +355,21 @@ export function describeSaveStep(step: SaveStepData): string {
   }
 }
 
+/** Asked after a secret is left out, if it can go into .gitignore. */
+export function secretIgnoreQuestion(path: string): { question: string; defaultAnswer: boolean } {
+  return { question: `Add ${path} to .gitignore so Git never asks again?`, defaultAnswer: true };
+}
+
 /** Lines about risky files left out of the commit. */
 export function explainLeftOutFiles(plan: SavePlan): string[] {
   return plan.risky
     .filter((risky) => !plan.choices[risky.path])
-    .map((risky) =>
-      risky.kind === "secret"
-        ? `Leaving out ${risky.path}: ${SECRET_REASONS[risky.reason]}. It stays on your computer.`
-        : `Leaving out ${risky.path} and adding it to .gitignore.`,
-    );
+    .map((risky) => {
+      const ignoring = willIgnore(plan, risky) ? " and adding it to .gitignore" : "";
+      return risky.kind === "secret"
+        ? `Leaving out ${risky.path}${ignoring}: ${SECRET_REASONS[risky.reason]}. It stays on your computer.`
+        : `Leaving out ${risky.path}${ignoring}.`;
+    });
 }
 
 /** Why Save won't run, or that there's nothing to do. */

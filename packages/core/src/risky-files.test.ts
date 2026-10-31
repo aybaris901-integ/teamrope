@@ -30,7 +30,7 @@ describe("findRiskyFiles", () => {
     ["notes.txt", "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n", "privateKey"],
   ])("%s is a secret (%s)", (name, content, reason) => {
     expect(findRiskyFiles(root, [file(name, content)])).toEqual([
-      { kind: "secret", path: name, reason },
+      { kind: "secret", path: name, reason, tracked: false },
     ]);
   });
 
@@ -54,6 +54,12 @@ describe("findRiskyFiles", () => {
       { kind: "generated", path: "node_modules/", fileCount: 2 },
       { kind: "generated", path: "web/dist/", fileCount: 1 },
       { kind: "generated", path: ".venv/", fileCount: 1 },
+    ]);
+  });
+
+  test("a tracked secret is marked as tracked", () => {
+    expect(findRiskyFiles(root, [file(".env", "X=1\n", false)])).toEqual([
+      { kind: "secret", path: ".env", reason: "fileName", tracked: true },
     ]);
   });
 

@@ -75,6 +75,10 @@ export interface SavePlan {
   risky: RiskyFile[];
   /** Per risky path: true to include it in the commit. Defaults to false. */
   choices: Record<string, boolean>;
+  /** Left-out secrets that can go into .gitignore (untracked, not ignored yet). */
+  ignorableSecrets: string[];
+  /** Per ignorable secret: false to keep it out of .gitignore. Defaults to true. */
+  ignoreChoices: Record<string, boolean>;
   /** The user's -m message, if any. */
   message: string | null;
   /** The team repo's copy of the branch has commits we don't have: no upload. */
@@ -125,7 +129,7 @@ function buildSteps(plan: SavePlan): SaveStep[] {
     .filter((step): step is Exclude<StartTaskStep, { kind: "push" }> => step.kind !== "push");
 
   const leftOut = plan.risky.filter((risky) => !plan.choices[risky.path]);
-  const ignoreEntries = leftOut.filter((risky) => risky.kind !== "secret").map((r) => r.path);
+  const ignoreEntries = leftOut.filter((risky) => willIgnore(plan, risky)).map((r) => r.path);
   if (ignoreEntries.length > 0) {
     steps.push(withDescription({ kind: "ignore", entries: ignoreEntries }));
   }
@@ -150,10 +154,42 @@ function buildSteps(plan: SavePlan): SaveStep[] {
   return steps;
 }
 
-/** Applies the user's answers about risky files. Pure: changes nothing on disk. */
-export function applySaveChoices(plan: SavePlan, choices: Record<string, boolean>): SavePlan {
-  const next = { ...plan, choices: { ...plan.choices, ...choices } };
+/**
+ * Applies the user's answers about risky files: `include` per risky path, and
+ * `ignore` per left-out secret. Pure: changes nothing on disk.
+ */
+export function applySaveChoices(
+  plan: SavePlan,
+  include: Record<string, boolean>,
+  ignore: Record<string, boolean> = {},
+): SavePlan {
+  const next = {
+    ...plan,
+    choices: { ...plan.choices, ...include },
+    ignoreChoices: { ...plan.ignoreChoices, ...ignore },
+  };
   return { ...next, steps: buildSteps(next) };
+}
+
+/** True if a left-out risky file goes into .gitignore. */
+export function willIgnore(plan: SavePlan, risky: RiskyFile): boolean {
+  if (risky.kind !== "secret") return true;
+  return plan.ignorableSecrets.includes(risky.path) && plan.ignoreChoices[risky.path] !== false;
+}
+
+/** Secrets that aren't tracked and aren't matched by .gitignore yet. */
+async function ignorableSecrets(git: SimpleGit, risky: RiskyFile[]): Promise<string[]> {
+  const result: string[] = [];
+  for (const file of risky) {
+    if (file.kind !== "secret" || file.tracked) continue;
+    try {
+      await git.raw(["check-ignore", "--quiet", "--", `:(top,literal)${file.path}`]);
+      // Exit 0: already ignored.
+    } catch {
+      result.push(file.path); // exit 1: not ignored
+    }
+  }
+  return result;
 }
 
 async function changedFiles(git: SimpleGit, repoRoot: string): Promise<ChangedFile[]> {
@@ -185,6 +221,8 @@ export async function planSave(dir: string, options: SaveOptions = {}): Promise<
     files,
     risky: [],
     choices: {},
+    ignorableSecrets: [],
+    ignoreChoices: {},
     message: options.message?.trim() || null,
     uploadBlocked: false,
     steps: [],
@@ -213,12 +251,14 @@ export async function planSave(dir: string, options: SaveOptions = {}): Promise<
     if (!startTask.canRun) return { ...base, refusal: startTask.refusal };
   }
 
+  const risky = findRiskyFiles(repoRoot, files);
   const plan: SavePlan = {
     ...base,
     canRun: true,
     startTask,
     branch: startTask ? startTask.branch : base.branch,
-    risky: findRiskyFiles(repoRoot, files),
+    risky,
+    ignorableSecrets: await ignorableSecrets(git, risky),
     uploadBlocked: !diagnosis.onMain && (diagnosis.behindUpstream ?? 0) > 0,
   };
   return { ...plan, steps: buildSteps(plan) };
