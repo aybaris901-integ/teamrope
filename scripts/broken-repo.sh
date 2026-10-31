@@ -13,6 +13,8 @@
 #                          with a conflict in src/app.js
 #   playground/dave        on main, up to date, with an uncommitted edit
 #                          (started coding on main)
+#   playground/gina        on gina/feature (pushed), with an edited README.md,
+#                          a new .env holding a fake API key and a node_modules/
 #
 # Safe to re-run: deletes ./playground and rebuilds it from scratch.
 
@@ -138,6 +140,18 @@ fi
 clone_as dave
 printf '\nconsole.log("dave was here");\n' >> "$PLAYGROUND/dave/src/app.js"
 
+# --- gina: own branch, unsaved work mixed with a secret and node_modules ----
+
+clone_as gina
+git -C "$PLAYGROUND/gina" switch --quiet -c gina/feature
+git -C "$PLAYGROUND/gina" push --quiet -u origin gina/feature
+printf '\n## Setup\n\nRun npm install.\n' >> "$PLAYGROUND/gina/README.md"
+# Fake key: shaped like a real one so the secret check notices it.
+printf 'OPENAI_API_KEY=sk-test-4f8a1b2c3d4e5f6a7b8c9d0e1f2a\n' > "$PLAYGROUND/gina/.env"
+mkdir -p "$PLAYGROUND/gina/node_modules/left-pad"
+printf 'module.exports = (s) => s;\n' > "$PLAYGROUND/gina/node_modules/left-pad/index.js"
+printf '{ "name": "left-pad" }\n' > "$PLAYGROUND/gina/node_modules/left-pad/package.json"
+
 # --- carol: uncommitted change on the same line alice changed ---------------
 
 git -C "$PLAYGROUND/carol" fetch --quiet origin
@@ -153,3 +167,4 @@ echo "  carol: carol/feature, behind main, uncommitted change conflicting with a
 echo "  eve:   eve/feature, clean, origin unreachable"
 echo "  frank: frank/feature, stuck mid-merge with a conflict in src/app.js"
 echo "  dave:  on main, up to date, uncommitted edit in src/app.js"
+echo "  gina:  gina/feature, edited README.md, new .env with a fake key, node_modules/"

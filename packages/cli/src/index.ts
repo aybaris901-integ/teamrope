@@ -5,13 +5,21 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { confirm, input } from "@inquirer/prompts";
 import {
+  applySaveChoices,
   diagnose,
+  executeSave,
   executeStartTask,
   explainDiagnosis,
+  explainSavePlan,
+  explainSaveRefusal,
+  explainSaveResult,
   explainStartTaskRefusal,
   explainStartTaskResult,
+  planSave,
   planStartTask,
+  riskyFileQuestion,
   slugify,
+  type SavePlan,
 } from "@branchguard/core";
 
 const USAGE = `Usage:
@@ -19,7 +27,11 @@ const USAGE = `Usage:
   branchguard start [task] [--name <name>] [--yes]
                                start a new task on your own branch
                                --name  your name for branch names (skips the question)
-                               --yes   don't ask anything, accept the defaults`;
+                               --yes   don't ask anything, accept the defaults
+  branchguard save [-m <message>] [--name <name>] [--yes]
+                               commit your work and upload it to your own branch
+                               -m      commit message (default: made from the file names)
+                               --yes   accept the defaults: risky files are left out`;
 
 async function runDiagnose(dirArg: string | undefined): Promise<void> {
   const dir = path.resolve(dirArg ?? ".");
@@ -28,24 +40,53 @@ async function runDiagnose(dirArg: string | undefined): Promise<void> {
   console.log(next);
 }
 
-interface StartFlags {
+interface PromptFlags {
   name?: string;
   yes: boolean;
 }
 
-async function runStart(taskName: string | undefined, flags: StartFlags): Promise<void> {
+/** Checks flags shared by commands that prompt. Prints why and returns false if unusable. */
+function checkPromptFlags(flags: PromptFlags): boolean {
   // Prompts need a terminal; without one they would wait forever.
   if (!flags.yes && !process.stdin.isTTY) {
     console.error("Run in a terminal or pass --yes");
     process.exitCode = 1;
-    return;
+    return false;
   }
-
   if (flags.name !== undefined && slugify(flags.name) === "") {
     console.error("--name needs at least one letter or number.");
     process.exitCode = 1;
-    return;
+    return false;
   }
+  return true;
+}
+
+/** Asks for the branch-name prefix; returns the answer, or null if nothing to ask. */
+async function askMemberName(
+  nameIsNew: boolean,
+  suggestion: string,
+  flags: PromptFlags,
+): Promise<string | null> {
+  if (!nameIsNew || flags.name !== undefined || flags.yes) return null;
+  const answer = await input({
+    message: "What name should your branches start with?",
+    default: suggestion,
+    validate: (value) => slugify(value) !== "" || "Use at least one letter or number.",
+  });
+  return slugify(answer) === suggestion ? null : answer;
+}
+
+async function confirmPlan(lines: string[], notes: string[], flags: PromptFlags): Promise<boolean> {
+  console.log("Here's what I'll do:");
+  lines.forEach((line, i) => console.log(`  ${i + 1}. ${line}`));
+  for (const note of notes) console.log(note);
+  if (flags.yes || (await confirm({ message: "Continue?", default: true }))) return true;
+  console.log("OK, nothing was changed.");
+  return false;
+}
+
+async function runStart(taskName: string | undefined, flags: PromptFlags): Promise<void> {
+  if (!checkPromptFlags(flags)) return;
 
   const dir = process.cwd();
   let plan = await planStartTask(dir, { taskName, memberName: flags.name });
@@ -55,27 +96,52 @@ async function runStart(taskName: string | undefined, flags: StartFlags): Promis
     return;
   }
 
-  // Ask only if the name is neither saved nor given.
-  if (plan.nameIsNew && flags.name === undefined && !flags.yes) {
-    const memberName = await input({
-      message: "What name should your branches start with?",
-      default: plan.memberName,
-      validate: (value) => slugify(value) !== "" || "Use at least one letter or number.",
-    });
-    if (slugify(memberName) !== plan.memberName) {
-      plan = await planStartTask(dir, { taskName, memberName });
-    }
-  }
+  const memberName = await askMemberName(plan.nameIsNew, plan.memberName, flags);
+  if (memberName !== null) plan = await planStartTask(dir, { taskName, memberName });
 
-  console.log("Here's what I'll do:");
-  plan.steps.forEach((step, i) => console.log(`  ${i + 1}. ${step.description}`));
-  if (!flags.yes && !(await confirm({ message: "Continue?", default: true }))) {
-    console.log("OK, nothing was changed.");
+  if (!(await confirmPlan(plan.steps.map((step) => step.description), [], flags))) return;
+  const result = await executeStartTask(plan);
+  for (const line of explainStartTaskResult(plan, result)) console.log(line);
+  if (!result.ok) process.exitCode = 1;
+}
+
+/** Asks about each risky file (or takes the safe defaults with --yes). */
+async function askAboutRiskyFiles(plan: SavePlan, yes: boolean): Promise<SavePlan> {
+  const choices: Record<string, boolean> = {};
+  for (const risky of plan.risky) {
+    const { question, defaultAnswer, yesIncludes } = riskyFileQuestion(risky);
+    const answer = yes ? defaultAnswer : await confirm({ message: question, default: defaultAnswer });
+    choices[risky.path] = answer === yesIncludes;
+  }
+  return applySaveChoices(plan, choices);
+}
+
+async function runSave(flags: PromptFlags & { message?: string }): Promise<void> {
+  if (!checkPromptFlags(flags)) return;
+
+  const dir = process.cwd();
+  const options = { message: flags.message, memberName: flags.name };
+  let plan = await planSave(dir, options);
+  if (!plan.canRun) {
+    console.log(explainSaveRefusal(plan).join(" "));
+    if (!plan.nothingToSave) process.exitCode = 1;
     return;
   }
 
-  const result = await executeStartTask(plan);
-  for (const line of explainStartTaskResult(plan, result)) console.log(line);
+  if (plan.startTask) {
+    const memberName = await askMemberName(plan.startTask.nameIsNew, plan.startTask.memberName, flags);
+    if (memberName !== null) plan = await planSave(dir, { ...options, memberName });
+  }
+  plan = await askAboutRiskyFiles(plan, flags.yes);
+  if (plan.steps.length === 0) {
+    console.log([...explainSavePlan(plan), "Nothing left to save."].join(" "));
+    return;
+  }
+
+  const lines = plan.steps.map((step) => step.description);
+  if (!(await confirmPlan(lines, explainSavePlan(plan), flags))) return;
+  const result = await executeSave(plan);
+  for (const line of explainSaveResult(plan, result)) console.log(line);
   if (!result.ok) process.exitCode = 1;
 }
 
@@ -92,6 +158,18 @@ async function main(args: string[]): Promise<void> {
         options: { name: { type: "string" }, yes: { type: "boolean", short: "y", default: false } },
       });
       await runStart(positionals[0], { name: values.name, yes: values.yes ?? false });
+      break;
+    }
+    case "save": {
+      const { values } = parseArgs({
+        args: rest,
+        options: {
+          message: { type: "string", short: "m" },
+          name: { type: "string" },
+          yes: { type: "boolean", short: "y", default: false },
+        },
+      });
+      await runSave({ message: values.message, name: values.name, yes: values.yes ?? false });
       break;
     }
     default:

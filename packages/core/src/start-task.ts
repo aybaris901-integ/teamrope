@@ -4,10 +4,12 @@ import type { SimpleGit } from "simple-git";
 import { diagnose, type Diagnosis } from "./diagnose.js";
 import {
   createBackupRef,
+  currentBranch,
   openRepo,
   readConfig,
   remoteProblemFromError,
   resolveRef,
+  shortError,
 } from "./git.js";
 import { describeStartTaskStep } from "./explain.js";
 import type { RemoteProblem } from "./remote-problem.js";
@@ -62,6 +64,8 @@ export interface StartTaskOptions {
   taskName?: string;
   /** Overrides the saved/suggested member name. */
   memberName?: string;
+  /** Plan even if the remote can't be reached (Save commits locally anyway). */
+  allowUnreachableRemote?: boolean;
   mainBranch?: string;
 }
 
@@ -111,10 +115,10 @@ async function readMemberNameWith(
   return { saved, suggestion };
 }
 
-function refusalFor(d: Diagnosis): StartTaskRefusal | null {
+function refusalFor(d: Diagnosis, options: StartTaskOptions): StartTaskRefusal | null {
   if (d.nextAction === "finishOperation") return "finishOperation";
   if (d.nextAction === "askCaptain") return "askCaptain";
-  if (d.nextAction === "fixAccess") return "fixAccess";
+  if (!d.canReachRemote && !options.allowUnreachableRemote) return "fixAccess";
   if (!d.onMain && d.dirtyFiles.length > 0) return "saveFirst";
   if (d.behindMain === null) return "noMainOnRemote";
   return null;
@@ -175,7 +179,7 @@ export async function planStartTask(
 ): Promise<StartTaskPlan> {
   const mainBranch = options.mainBranch ?? "main";
   const diagnosis = await diagnose(dir, mainBranch); // fetches, so origin/<main> is fresh
-  const refusal = refusalFor(diagnosis);
+  const refusal = refusalFor(diagnosis, options);
   if (refusal) {
     return {
       dir,
@@ -244,14 +248,6 @@ export async function planStartTask(
   };
 }
 
-async function currentBranch(git: SimpleGit): Promise<string | null> {
-  try {
-    return (await git.raw(["symbolic-ref", "--quiet", "--short", "HEAD"])).trim() || null;
-  } catch {
-    return null;
-  }
-}
-
 /** Throws if the repo changed since planning in a way that makes the plan unsafe. */
 async function checkUnchanged(git: SimpleGit, plan: StartTaskPlan): Promise<void> {
   if ((await resolveRef(git, "HEAD")) !== plan.head) {
@@ -266,7 +262,8 @@ async function checkUnchanged(git: SimpleGit, plan: StartTaskPlan): Promise<void
   }
 }
 
-async function runStep(
+/** Runs one Start task step. Also used by Save when it starts from main. */
+export async function runStartTaskStep(
   git: SimpleGit,
   plan: StartTaskPlan,
   step: StartTaskStep,
@@ -302,13 +299,6 @@ async function runStep(
   }
 }
 
-/** First line of a Git error, without "fatal: " / "error: ". */
-function shortError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  const line = message.split("\n").map((l) => l.trim()).find(Boolean) ?? "Unknown error.";
-  return line.replace(/^(fatal|error):\s*/, "");
-}
-
 export async function executeStartTask(plan: StartTaskPlan): Promise<StartTaskResult> {
   if (!plan.canRun) throw new Error("This plan was refused and can't be executed.");
   const git = await openRepo(plan.dir);
@@ -322,7 +312,7 @@ export async function executeStartTask(plan: StartTaskPlan): Promise<StartTaskRe
 
   for (const step of plan.steps) {
     try {
-      await runStep(git, plan, step, result.backups);
+      await runStartTaskStep(git, plan, step, result.backups);
       result.completed.push(step);
     } catch (error) {
       // Updating main on a clean start is a bonus: skip it silently.

@@ -8,6 +8,8 @@ import type {
   StartTaskStep,
   StartTaskStepData,
 } from "./start-task.js";
+import type { SavePlan, SaveResult, SaveStepData } from "./save.js";
+import type { RiskyFile, SecretReason } from "./risky-files.js";
 
 const MAX_LISTED_FILES = 5;
 
@@ -244,7 +246,11 @@ export function explainStartTaskRefusal(plan: StartTaskPlan): string[] {
   }
 }
 
-function explainDoneStep(step: StartTaskStep, plan: StartTaskPlan, result: StartTaskResult): string {
+function explainDoneStep(
+  step: StartTaskStep,
+  plan: StartTaskPlan,
+  result: Pick<StartTaskResult, "backups">,
+): string {
   switch (step.kind) {
     case "saveName":
       return `Saved "${step.name}" as your name in this repo.`;
@@ -283,6 +289,143 @@ export function explainStartTaskResult(plan: StartTaskPlan, result: StartTaskRes
       result.completed.length === 0
         ? "Nothing was changed."
         : "Nothing after that was changed.",
+    );
+  }
+  return lines;
+}
+
+// --- Save ------------------------------------------------------------------
+
+const SECRET_REASONS: Record<SecretReason, string> = {
+  fileName: "its name looks like a secrets file",
+  awsKey: "it looks like it contains an AWS key",
+  githubToken: "it looks like it contains a GitHub token",
+  apiKey: "it looks like it contains an API key",
+  privateKey: "it looks like it contains a private key",
+};
+
+function megabytes(bytes: number): string {
+  return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
+
+/** A yes/no question about one risky file, and what "yes" means. */
+export function riskyFileQuestion(risky: RiskyFile): {
+  question: string;
+  defaultAnswer: boolean;
+  /** True: "yes" includes the file. False: "yes" leaves it out (and ignores it). */
+  yesIncludes: boolean;
+} {
+  switch (risky.kind) {
+    case "secret":
+      return {
+        question: `${risky.path} may be a secret: ${SECRET_REASONS[risky.reason]}. Include it in the save? Anyone with repo access could see it.`,
+        defaultAnswer: false,
+        yesIncludes: true,
+      };
+    case "generated":
+      return {
+        question: `${risky.path} looks like generated files (${plural(risky.fileCount, "file")}) that don't belong in Git. Leave it out and add it to .gitignore?`,
+        defaultAnswer: true,
+        yesIncludes: false,
+      };
+    case "large":
+      return {
+        question: `${risky.path} is ${megabytes(risky.sizeBytes)}, too big for Git. Leave it out and add it to .gitignore?`,
+        defaultAnswer: true,
+        yesIncludes: false,
+      };
+  }
+}
+
+function describeIgnoreEntries(entries: string[]): string {
+  return entries.length === 1 ? (entries[0] ?? "") : `${entries.slice(0, -1).join(", ")} and ${entries.at(-1)}`;
+}
+
+/** One plain-English line saying what a Save step will do. */
+export function describeSaveStep(step: SaveStepData): string {
+  switch (step.kind) {
+    case "ignore":
+      return `Add ${describeIgnoreEntries(step.entries)} to .gitignore so Git leaves ${step.entries.length === 1 ? "it" : "them"} out from now on.`;
+    case "commit":
+      return `Save ${plural(step.files.length, "file")} as a commit (a snapshot of your work): "${step.message}".`;
+    case "upload":
+      return `Upload it to ${step.branch} on the team repo.`;
+    default:
+      return describeStartTaskStep(step);
+  }
+}
+
+/** Lines about risky files left out of the commit. */
+export function explainLeftOutFiles(plan: SavePlan): string[] {
+  return plan.risky
+    .filter((risky) => !plan.choices[risky.path])
+    .map((risky) =>
+      risky.kind === "secret"
+        ? `Leaving out ${risky.path}: ${SECRET_REASONS[risky.reason]}. It stays on your computer.`
+        : `Leaving out ${risky.path} and adding it to .gitignore.`,
+    );
+}
+
+/** Why Save won't run, or that there's nothing to do. */
+export function explainSaveRefusal(plan: SavePlan): string[] {
+  if (plan.nothingToSave) return ["Nothing to save, you're all set."];
+  if (plan.refusal === "noIdentity") {
+    return [
+      "Git doesn't know your name and email yet, and every save records who made it.",
+      'Run `git config --global user.name "Your Name"` and `git config --global user.email you@example.com`, then Save again.',
+    ];
+  }
+  if (plan.startTask && !plan.startTask.canRun) return explainStartTaskRefusal(plan.startTask);
+  const { summary, next } = explainDiagnosis(plan.diagnosis, plan.mainBranch);
+  return ["I can't save right now.", ...summary, next];
+}
+
+/** Lines shown with the plan, before asking to continue. */
+export function explainSavePlan(plan: SavePlan): string[] {
+  const lines = [...explainLeftOutFiles(plan)];
+  if (plan.uploadBlocked) {
+    lines.push(
+      `The team repo's copy of ${plan.branch} has commits you don't have, so I'll save on your computer only. Sync, then Save again to upload.`,
+    );
+  }
+  return lines;
+}
+
+/** What Save did, step by step, and what went wrong if anything. */
+export function explainSaveResult(plan: SavePlan, result: SaveResult): string[] {
+  const lines = result.completed.map((step) => {
+    switch (step.kind) {
+      case "ignore":
+        return `Added ${describeIgnoreEntries(step.entries)} to .gitignore.`;
+      case "commit":
+        return `Saved ${plural(step.files.length, "file")} as a commit: "${step.message}".`;
+      case "upload":
+        return `Uploaded your work to ${step.branch} on the team repo.`;
+      default:
+        return plan.startTask ? explainDoneStep(step, plan.startTask, result) : step.description;
+    }
+  });
+  const committed = result.completed.some((step) => step.kind === "commit");
+
+  if (result.pushRejected) {
+    lines.push(
+      `Didn't upload: the team repo's copy of ${plan.branch} has commits you don't have.${committed ? " Your work is saved on this computer." : ""}`,
+      "Sync to bring those commits in, then Save again.",
+    );
+  } else if (result.pushProblem) {
+    const [meaning, whatToDo] = explainRemoteProblem(result.pushProblem);
+    lines.push(
+      `Your work is saved only on this computer: uploading failed. ${meaning}`,
+      `${whatToDo} Then Save again to upload.`,
+    );
+  } else if (result.failedStep) {
+    lines.push(
+      `I stopped before this step: ${result.failedStep.description} Reason: ${endSentence(result.error ?? "unknown error")}`,
+      result.completed.length === 0 ? "Nothing was changed." : "Nothing after that was changed.",
+    );
+  } else if (plan.uploadBlocked && committed) {
+    lines.push(
+      `Saved on this computer only, because the team repo's copy of ${plan.branch} has commits you don't have. Sync, then Save again to upload.`,
     );
   }
   return lines;

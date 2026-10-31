@@ -140,6 +140,22 @@ export async function readConfig(git: SimpleGit, key: string): Promise<string | 
   }
 }
 
+/** Name of the checked-out branch, or null if HEAD is detached. */
+export async function currentBranch(git: SimpleGit): Promise<string | null> {
+  try {
+    return (await git.raw(["symbolic-ref", "--quiet", "--short", "HEAD"])).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** First line of a Git error, without "fatal: " / "error: ". */
+export function shortError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const line = message.split("\n").map((l) => l.trim()).find(Boolean) ?? "Unknown error.";
+  return line.replace(/^(fatal|error):\s*/, "");
+}
+
 /** Full commit id of a ref, or null if the ref doesn't exist. */
 export async function resolveRef(git: SimpleGit, ref: string): Promise<string | null> {
   try {

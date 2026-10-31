@@ -14,6 +14,11 @@ export {
   explainRemoteProblem,
   explainStartTaskRefusal,
   explainStartTaskResult,
+  explainLeftOutFiles,
+  explainSavePlan,
+  explainSaveRefusal,
+  explainSaveResult,
+  riskyFileQuestion,
   type Explanation,
 } from "./explain.js";
 export { BlockedEnvVarError, NotAGitRepoError } from "./git.js";
@@ -35,3 +40,15 @@ export {
   type StartTaskResult,
   type StartTaskStep,
 } from "./start-task.js";
+export {
+  applySaveChoices,
+  commitMessageFor,
+  executeSave,
+  planSave,
+  type SaveOptions,
+  type SavePlan,
+  type SaveRefusal,
+  type SaveResult,
+  type SaveStep,
+} from "./save.js";
+export { findRiskyFiles, type ChangedFile, type RiskyFile, type SecretReason } from "./risky-files.js";
