@@ -601,8 +601,8 @@ function explainTeamProblem(problem: TeamProblem, mainBranch: string): string {
         ? `${ownerA}'s ${a} and ${b} change the same part of ${listWords(files)}. ${ownerA} should settle on one version before either is merged into ${mainBranch}.`
         : `${ownerA} (${a}) and ${ownerB} (${b}) changed the same part of ${listWords(files)}. They should agree on one version now, before either is merged into ${mainBranch}.`;
     }
-    case "noRecentUpload":
-      return `${problem.owner} hasn't uploaded ${problem.branch} for ${problem.hours} h. Ask ${problem.owner} to Save, even if the work isn't finished.`;
+    case "noRecentSave":
+      return `${problem.owner} hasn't saved ${problem.branch} for ${problem.hours} h. Ask ${problem.owner} to Save, even if the work isn't finished.`;
     case "farBehind":
       return `${problem.owner}'s ${problem.branch} is ${problem.behind} commits behind ${mainBranch}. ${problem.owner} should Sync soon, while it's still easy.`;
   }
@@ -624,8 +624,8 @@ function branchStatusLabel(branch: RemoteBranch, status: TeamStatus): string {
         .map((p) => p.overlap.owners[p.overlap.branches[0] === branch.branch ? 1 : 0]);
       return `overlaps ${listWords([...new Set(others)])}`;
     }
-    case "noRecentUpload":
-      return `no upload for ${first.hours} h`;
+    case "noRecentSave":
+      return `no save for ${first.hours} h`;
     case "farBehind":
       return "far behind";
   }
@@ -657,14 +657,14 @@ export function explainTeamStatus(status: TeamStatus): string[] {
   lines.push("");
 
   if (status.branches.length === 0) {
-    lines.push("Nobody has uploaded a branch in the last day.");
+    lines.push("Nobody has saved work to the team repo in the last day.");
   } else {
     const rows = [
-      ["who", "branch", "last upload", "ahead/behind", "status"],
+      ["who", "branch", "last save", "ahead/behind", "status"],
       ...status.branches.map((b) => [
         b.owner,
         b.branch,
-        timeAgo(b.lastUpload, status.now),
+        timeAgo(b.lastSave, status.now),
         `+${b.ahead} / -${b.behind}`,
         branchStatusLabel(b, status),
       ]),
@@ -672,7 +672,7 @@ export function explainTeamStatus(status: TeamStatus): string[] {
     lines.push(...formatTable(rows));
   }
   if (status.oldBranches.length > 0) {
-    lines.push(`and ${plural(status.oldBranches.length, "old branch")} (no upload for over a day)`);
+    lines.push(`and ${plural(status.oldBranches.length, "old branch")} (no save for over a day)`);
   }
 
   lines.push("", "This only shows uploaded work. Ask everyone to Save often.");

@@ -82,7 +82,7 @@ describe("teamStatus", () => {
 
     const status = await teamStatus(pg.clone("alice"));
     expect(status.problems).toContainEqual({
-      kind: "noRecentUpload",
+      kind: "noRecentSave",
       branch: "olive/idea",
       owner: "olive",
       hours: 3,
@@ -90,8 +90,8 @@ describe("teamStatus", () => {
     expect(status.oldBranches.map((b) => b.branch)).toEqual(["pat/old-idea"]);
     expect(status.branches.map((b) => b.branch)).not.toContain("pat/old-idea");
     const text = explainTeamStatus(status);
-    expect(text).toContain("and 1 old branch (no upload for over a day)");
-    expect(text.join("\n")).toContain("olive hasn't uploaded olive/idea for 3 h.");
+    expect(text).toContain("and 1 old branch (no save for over a day)");
+    expect(text.join("\n")).toContain("olive hasn't saved olive/idea for 3 h.");
   });
 
   test("a branch far behind main is flagged", async () => {
@@ -112,7 +112,7 @@ describe("teamStatus", () => {
     const helper = helperClone("helper");
     pushBranchAt(helper, "olive/idea", 3);
     const status = await teamStatus(pg.clone("alice"));
-    expect(kinds(status.problems)).toEqual(["conflictWithMain", "overlap", "noRecentUpload"]);
+    expect(kinds(status.problems)).toEqual(["conflictWithMain", "overlap", "noRecentSave"]);
   });
 
   test("a fresh repo with clean branches: no problems", async () => {

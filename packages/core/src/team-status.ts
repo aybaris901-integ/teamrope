@@ -6,9 +6,9 @@ import { authorsSinceSplit, predictConflicts, type DryRunMethod } from "./dry-ru
 import { fetchOrigin, gitVersion, openRepo, resolveRef } from "./git.js";
 import type { RemoteProblem } from "./remote-problem.js";
 
-/** Branches with an upload in this window are "active". */
+/** Branches saved (newest commit) within this window are "active". */
 export const ACTIVE_HOURS = 24;
-/** Active branches without an upload for this long are flagged. */
+/** Active branches not saved for this long are flagged. */
 export const STALE_HOURS = 2;
 /** Branches this many commits behind main are flagged. */
 export const FAR_BEHIND_COMMITS = 5;
@@ -26,8 +26,8 @@ export interface RemoteBranch {
   branch: string;
   /** Name prefix before "/", or the last author if there is none. */
   owner: string;
-  /** Date of the newest commit on the branch: the best guess at the last upload. */
-  lastUpload: Date;
+  /** Committer date of the newest commit: when the work was last saved. */
+  lastSave: Date;
   /** Commits not in main yet. */
   ahead: number;
   /** Commits on main the branch doesn't have. */
@@ -45,7 +45,7 @@ export interface BranchOverlap {
 export type TeamProblem =
   | { kind: "conflictWithMain"; branch: string; owner: string; conflicts: MainConflict[] }
   | { kind: "overlap"; overlap: BranchOverlap }
-  | { kind: "noRecentUpload"; branch: string; owner: string; hours: number }
+  | { kind: "noRecentSave"; branch: string; owner: string; hours: number }
   | { kind: "farBehind"; branch: string; owner: string; behind: number };
 
 export interface TeamStatus {
@@ -53,7 +53,7 @@ export interface TeamStatus {
   now: Date;
   canReachRemote: boolean;
   remoteProblem: RemoteProblem | null;
-  /** Uploaded in the last ACTIVE_HOURS, sorted by owner then branch. */
+  /** Saved in the last ACTIVE_HOURS, sorted by owner then branch. */
   branches: RemoteBranch[];
   /** Older branches, shown collapsed. */
   oldBranches: RemoteBranch[];
@@ -130,7 +130,7 @@ async function describeBranch(
   return {
     branch: info.branch,
     owner: ownerOf(info),
-    lastUpload: info.date,
+    lastSave: info.date,
     ahead,
     behind,
     conflictsWithMain,
@@ -178,9 +178,9 @@ function findProblems(branches: RemoteBranch[], overlaps: BranchOverlap[], now: 
   }
   for (const overlap of overlaps) problems.push({ kind: "overlap", overlap });
   for (const b of branches) {
-    const hours = Math.floor((now.getTime() - b.lastUpload.getTime()) / HOUR_MS);
+    const hours = Math.floor((now.getTime() - b.lastSave.getTime()) / HOUR_MS);
     if (hours >= STALE_HOURS) {
-      problems.push({ kind: "noRecentUpload", branch: b.branch, owner: b.owner, hours });
+      problems.push({ kind: "noRecentSave", branch: b.branch, owner: b.owner, hours });
     }
   }
   for (const b of branches) {
