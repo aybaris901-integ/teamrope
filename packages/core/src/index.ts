@@ -9,7 +9,7 @@ export {
   type OperationInProgress,
 } from "./diagnose.js";
 export { explainDiagnosis, explainRemoteProblem, type Explanation } from "./explain.js";
-export { NotAGitRepoError } from "./git.js";
+export { BlockedEnvVarError, NotAGitRepoError } from "./git.js";
 export {
   classifyRemoteProblem,
   type RemoteProblem,

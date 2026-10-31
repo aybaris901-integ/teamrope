@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { cleanGitEnv, DEFAULT_SSH_COMMAND } from "./git.js";
 
 describe("cleanGitEnv", () => {
-  test("drops editors, pagers and password pop-ups, keeps the rest", () => {
+  test("drops editors, pagers, password pop-ups and other rejected vars, keeps the rest", () => {
     const env = cleanGitEnv({
       PATH: "/usr/bin",
       HOME: "/home/me",
@@ -11,6 +11,9 @@ describe("cleanGitEnv", () => {
       PAGER: "less",
       GIT_ASKPASS: "/vscode/askpass.sh",
       SSH_ASKPASS: "/usr/lib/ssh/askpass",
+      PREFIX: "/data/data/com.termux/files/usr",
+      GIT_EXTERNAL_DIFF: "difft",
+      GIT_TEMPLATE_DIR: "/home/me/.git-templates",
       UNDEFINED_VAR: undefined,
     });
     expect(env).toEqual({

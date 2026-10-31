@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { diagnose, pickNextAction, type Diagnosis } from "./diagnose.js";
-import { NotAGitRepoError } from "./git.js";
+import { BlockedEnvVarError, NotAGitRepoError } from "./git.js";
 
 const PLAYGROUND = fileURLToPath(new URL("../../../playground", import.meta.url));
 const clone = (name: string): string => path.join(PLAYGROUND, name);
@@ -60,6 +60,18 @@ describe("diagnose", () => {
     expect(d.currentBranch).toBe("frank/feature");
     expect(d.dirtyFiles).toContain("src/app.js");
     expect(d.conflictedFiles).toEqual(["src/app.js"]);
+  });
+
+  describe("env simple-git refuses", () => {
+    afterEach(() => vi.unstubAllEnvs());
+
+    test("throws a clear error naming the variable instead of crashing", async () => {
+      vi.stubEnv("GIT_CONFIG_GLOBAL", "/dev/null");
+      const error = await diagnose(clone("alice")).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(BlockedEnvVarError);
+      expect((error as BlockedEnvVarError).variable).toBe("GIT_CONFIG_GLOBAL");
+      expect((error as Error).message).toContain("unset GIT_CONFIG_GLOBAL");
+    });
   });
 
   describe("outside a repo", () => {
