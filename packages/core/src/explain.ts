@@ -1,6 +1,7 @@
 // Explain layer: turns core results into short plain-English sentences.
 // Pure functions only - callers decide how to show them.
 import type { Diagnosis } from "./diagnose.js";
+import type { RemoteProblem } from "./remote-problem.js";
 
 const MAX_LISTED_FILES = 5;
 
@@ -26,13 +27,55 @@ function listFiles(files: string[]): string {
   return hidden > 0 ? `${shown} and ${hidden} more` : shown;
 }
 
+/** What the problem means, then what to do about it. */
+export function explainRemoteProblem(problem: RemoteProblem): [string, string] {
+  switch (problem.kind) {
+    case "auth":
+      return [
+        "Git needs you to log in, and there's no saved login on this computer (or it has expired).",
+        "If the repo is on GitHub, install the GitHub CLI (gh), run `gh auth login`, then `gh auth setup-git`, and try again.",
+      ];
+    case "notFoundOrNoAccess":
+      return [
+        "The team repo wasn't found, or your account doesn't have access to it.",
+        "Check the repo address with your captain and ask them to add your account to the repo.",
+      ];
+    case "sshKey":
+      return [
+        "The server didn't accept your SSH key (the file on your computer that proves who you are).",
+        "Add your public key to your account on the server (on GitHub: Settings → SSH and GPG keys), or switch the repo to an HTTPS address.",
+      ];
+    case "hostKey":
+      return [
+        "Your computer doesn't recognize the server yet (or its identity changed), so it refused to connect to be safe.",
+        "Ask your captain to check the server's fingerprint before connecting. Don't just accept it.",
+      ];
+    case "network":
+      return [
+        "Your computer couldn't connect to the server that hosts the team repo.",
+        "Check your internet connection (or the venue Wi-Fi) and try again.",
+      ];
+    case "timeout":
+      return [
+        "The server didn't answer in time.",
+        "Check your internet connection and try again in a minute.",
+      ];
+    case "unknown":
+      return [
+        `Something unexpected went wrong. Git said: ${endSentence(problem.detail)}`,
+        "Show this message to your captain.",
+      ];
+  }
+}
+
 export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): string[] {
   const sentences: string[] = [];
 
   // First, because everything below is based on possibly old remote data.
-  if (!d.canReachRemote) {
+  if (d.remoteProblem) {
     sentences.push(
-      `I couldn't reach the team repo, so this may be out of date. Git said: ${endSentence(d.remoteError ?? "unknown error")}`,
+      "I couldn't reach the team repo, so the rest may be out of date.",
+      ...explainRemoteProblem(d.remoteProblem),
     );
   }
 

@@ -20,7 +20,7 @@ describe("diagnose", () => {
     expect(d.aheadOfUpstream).toBe(0);
     expect(d.behindUpstream).toBe(0);
     expect(d.canReachRemote).toBe(true);
-    expect(d.remoteError).toBeNull();
+    expect(d.remoteProblem).toBeNull();
     expect(d.supportsMergeTree).toBe(true);
   });
 
@@ -42,7 +42,8 @@ describe("diagnose", () => {
   test("eve: remote unreachable, reported instead of thrown", async () => {
     const d = await diagnose(clone("eve"));
     expect(d.canReachRemote).toBe(false);
-    expect(d.remoteError).toMatch(/missing-origin\.git/);
+    expect(d.remoteProblem?.kind).toBe("notFoundOrNoAccess");
+    expect(d.remoteProblem?.detail).toMatch(/missing-origin\.git/);
     expect(d.currentBranch).toBe("eve/feature");
   });
 

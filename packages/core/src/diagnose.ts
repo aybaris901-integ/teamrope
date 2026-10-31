@@ -2,6 +2,7 @@
 // The only thing it changes is the remote-tracking refs, via `git fetch`.
 import { GitPluginError, type SimpleGit } from "simple-git";
 import { countCommits, GIT_TIMEOUT_MS, openRepo } from "./git.js";
+import { classifyRemoteProblem, type RemoteProblem } from "./remote-problem.js";
 
 export interface Diagnosis {
   gitVersion: string;
@@ -21,8 +22,8 @@ export interface Diagnosis {
   /** Local <main> commits not on origin/<main>. Null if either branch is missing. */
   unpushedCommitsOnMain: number | null;
   canReachRemote: boolean;
-  /** Short reason the fetch failed, else null. */
-  remoteError: string | null;
+  /** Why the fetch failed, else null. */
+  remoteProblem: RemoteProblem | null;
 }
 
 export async function diagnose(dir: string, mainBranch = "main"): Promise<Diagnosis> {
@@ -54,22 +55,21 @@ export async function diagnose(dir: string, mainBranch = "main"): Promise<Diagno
 
 async function fetchOrigin(
   git: SimpleGit,
-): Promise<Pick<Diagnosis, "canReachRemote" | "remoteError">> {
+): Promise<Pick<Diagnosis, "canReachRemote" | "remoteProblem">> {
   try {
     await git.raw(["fetch", "--quiet", "origin"]);
-    return { canReachRemote: true, remoteError: null };
+    return { canReachRemote: true, remoteProblem: null };
   } catch (error) {
-    return { canReachRemote: false, remoteError: shortReason(error) };
+    return { canReachRemote: false, remoteProblem: toRemoteProblem(error) };
   }
 }
 
-/** First meaningful line of a Git error, without the "fatal: " prefix. */
-function shortReason(error: unknown): string {
+function toRemoteProblem(error: unknown): RemoteProblem {
   if (error instanceof GitPluginError && error.plugin === "timeout") {
-    return `No answer from the remote after ${GIT_TIMEOUT_MS / 1000} seconds.`;
+    return {
+      kind: "timeout",
+      detail: `No answer from the remote after ${GIT_TIMEOUT_MS / 1000} seconds.`,
+    };
   }
-  const message = error instanceof Error ? error.message : String(error);
-  const lines = message.split("\n").map((line) => line.trim()).filter(Boolean);
-  const line = lines.find((l) => l.startsWith("fatal:")) ?? lines[0] ?? "Unknown error.";
-  return line.replace(/^fatal:\s*/, "");
+  return classifyRemoteProblem(error instanceof Error ? error.message : String(error));
 }
