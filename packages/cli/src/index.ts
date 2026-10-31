@@ -163,7 +163,8 @@ async function runSync(flags: PromptFlags): Promise<void> {
   if (!checkPromptFlags(flags)) return;
   const plan = await planSync(process.cwd());
   if (!plan.canRun) {
-    console.log(explainSyncRefusal(plan).join(" "));
+    // A predicted conflict shows code, so keep its lines apart.
+    console.log(explainSyncRefusal(plan).join(plan.conflicts.length > 0 ? "\n" : " "));
     if (!plan.upToDate) process.exitCode = 1;
     return;
   }

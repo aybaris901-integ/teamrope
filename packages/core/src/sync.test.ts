@@ -68,11 +68,28 @@ describe("planSync + executeSync", () => {
 
     const plan = await planSync(dir);
     expect(plan.canRun).toBe(false);
-    expect(plan.conflicts).toEqual([{ path: "src/config.js", authors: ["alice"] }]);
+    expect(plan.conflicts).toEqual([
+      {
+        path: "src/config.js",
+        authors: ["alice"],
+        hunks: [
+          {
+            yours: ['  apiUrl: "https://hank.example.com",'],
+            theirs: ['  apiUrl: "http://localhost:3000",'],
+          },
+        ],
+      },
+    ]);
     expectUntouched(dir, head);
     expect(plan.diagnosis.nextAction).toBe("sync");
-    expect(explainSyncRefusal(plan).join(" ")).toContain(
-      "alice changed the same part of src/config.js. Talk to them before syncing.",
+    const text = explainSyncRefusal(plan);
+    expect(text).toContain("alice changed the same part of src/config.js. Talk to them before syncing.");
+    expect(text).toContain("  Your version:");
+    expect(text).toContain('      apiUrl: "https://hank.example.com",');
+    expect(text).toContain("  alice's version on main:");
+    expect(text).toContain('      apiUrl: "http://localhost:3000",');
+    expect(text.at(-1)).toBe(
+      "Next: agree with alice on one version, edit your file to match it exactly, Save, then Sync.",
     );
   });
 
@@ -98,7 +115,18 @@ describe("planSync + executeSync", () => {
     const hank = pg.clone("hank");
     const head = git(hank, "rev-parse", "HEAD");
     const conflicted = await planSync(hank, { dryRunMethod: "worktree" });
-    expect(conflicted.conflicts).toEqual([{ path: "src/config.js", authors: ["alice"] }]);
+    expect(conflicted.conflicts).toEqual([
+      {
+        path: "src/config.js",
+        authors: ["alice"],
+        hunks: [
+          {
+            yours: ['  apiUrl: "https://hank.example.com",'],
+            theirs: ['  apiUrl: "http://localhost:3000",'],
+          },
+        ],
+      },
+    ]);
     expectNoScratchWorktree(hank);
     expectUntouched(hank, head);
   });

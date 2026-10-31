@@ -1,9 +1,13 @@
 // Sync: bring the latest main into the member's branch, but only after a
 // dry run shows it merges cleanly. planSync() only looks; executeSync() merges.
-import { mkdirSync, rmSync } from "node:fs";
-import path from "node:path";
 import type { SimpleGit } from "simple-git";
 import { diagnose, type Diagnosis } from "./diagnose.js";
+import {
+  authorsSinceSplit,
+  predictConflicts,
+  type ConflictHunk,
+  type DryRunMethod,
+} from "./dry-run.js";
 import { describeSyncStep } from "./explain.js";
 import {
   createBackupRef,
@@ -32,10 +36,11 @@ export interface SyncConflict {
   path: string;
   /** Authors of main's commits touching the file since the branch split. */
   authors: string[];
+  /** The conflicting lines: yours = the branch, theirs = main. */
+  hunks: ConflictHunk[];
 }
 
-/** mergeTree: `git merge-tree --write-tree` (Git 2.38+). worktree: older Git. */
-export type DryRunMethod = "mergeTree" | "worktree";
+export type { DryRunMethod };
 
 export type SyncStep = { description: string } & (
   | { kind: "merge"; branch: string; target: string; commits: number }
@@ -103,62 +108,6 @@ function refusalFor(d: Diagnosis): SyncRefusal | null {
   return null;
 }
 
-/** Conflicted paths per `git merge-tree --write-tree` (exit 1 on conflict is fine). */
-async function mergeTreeConflicts(git: SimpleGit, head: string, target: string): Promise<string[]> {
-  const output = await git.raw([
-    "merge-tree",
-    "--write-tree",
-    "--name-only",
-    "--no-messages",
-    head,
-    target,
-  ]);
-  // First line is the merged tree; any further lines are conflicted paths.
-  return output.split("\n").slice(1).filter(Boolean);
-}
-
-/**
- * Older Git: try the merge in a throwaway worktree inside .git, so the
- * user's files are never touched. The worktree is always removed.
- */
-async function worktreeConflicts(
-  git: SimpleGit,
-  dir: string,
-  head: string,
-  target: string,
-): Promise<string[]> {
-  const gitDir = path.resolve(dir, (await git.revparse(["--git-common-dir"])).trim());
-  const tmp = path.join(gitDir, "branchguard", `dry-run-${Date.now()}-${process.pid}`);
-  mkdirSync(path.dirname(tmp), { recursive: true });
-  try {
-    await git.raw(["worktree", "add", "--detach", "--quiet", tmp, head]);
-    const scratch = await openRepo(tmp);
-    try {
-      await scratch.raw(["merge", "--no-commit", "--no-ff", "--no-edit", target]);
-    } catch {
-      // A conflict may end up here or not; the unmerged list below decides.
-    }
-    const unmerged = await scratch.raw(["diff", "--name-only", "--diff-filter=U"]);
-    return unmerged.split("\n").filter(Boolean);
-  } finally {
-    // --force: it's our own scratch worktree, possibly mid-merge.
-    await git.raw(["worktree", "remove", "--force", tmp]).catch(() => undefined);
-    rmSync(tmp, { recursive: true, force: true });
-    await git.raw(["worktree", "prune"]).catch(() => undefined);
-  }
-}
-
-async function authorsOnMain(
-  git: SimpleGit,
-  head: string,
-  target: string,
-  file: string,
-): Promise<string[]> {
-  const base = (await git.raw(["merge-base", head, target])).trim();
-  const log = await git.raw(["log", "--format=%an", `${base}..${target}`, "--", `:(top,literal)${file}`]);
-  return [...new Set(log.split("\n").filter(Boolean))];
-}
-
 export async function planSync(dir: string, options: SyncOptions = {}): Promise<SyncPlan> {
   const mainBranch = options.mainBranch ?? "main";
   const diagnosis = await diagnose(dir, mainBranch); // fetches, so origin/<main> is fresh
@@ -188,14 +137,11 @@ export async function planSync(dir: string, options: SyncOptions = {}): Promise<
 
   const dryRunMethod =
     options.dryRunMethod ?? (diagnosis.supportsMergeTree ? "mergeTree" : "worktree");
-  const conflicted =
-    dryRunMethod === "mergeTree"
-      ? await mergeTreeConflicts(git, head, target)
-      : await worktreeConflicts(git, dir, head, target);
-  if (conflicted.length > 0) {
+  const predicted = await predictConflicts(git, dir, head, target, dryRunMethod);
+  if (predicted.length > 0) {
     const conflicts: SyncConflict[] = [];
-    for (const file of conflicted) {
-      conflicts.push({ path: file, authors: await authorsOnMain(git, head, target, file) });
+    for (const { path, hunks } of predicted) {
+      conflicts.push({ path, authors: await authorsSinceSplit(git, head, target, path), hunks });
     }
     return { ...base, dryRunMethod, conflicts };
   }

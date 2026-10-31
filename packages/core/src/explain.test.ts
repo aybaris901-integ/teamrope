@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Diagnosis } from "./diagnose.js";
-import { explainDiagnosis } from "./explain.js";
+import { explainDiagnosis, explainSyncRefusal } from "./explain.js";
+import type { SyncPlan } from "./sync.js";
 
 const base: Diagnosis = {
   gitVersion: "2.56.0",
@@ -121,5 +122,40 @@ describe("explainDiagnosis", () => {
 
   test("nothing to do", () => {
     expect(explainDiagnosis(base).next).toBe("Nothing to do, keep coding.");
+  });
+});
+
+describe("explainSyncRefusal with conflicts", () => {
+  const hunk = (n: number) => ({ yours: [`mine ${n}`], theirs: [`main ${n}`] });
+  const plan = {
+    mainBranch: "main",
+    upToDate: false,
+    conflicts: [
+      { path: "src/app.js", authors: ["alice", "bob"], hunks: [1, 2, 3, 4, 5].map(hunk) },
+      {
+        path: "src/long.js",
+        authors: [],
+        hunks: [{ yours: Array.from({ length: 9 }, (_, i) => `line ${i}`), theirs: [] }],
+      },
+    ],
+  } as unknown as SyncPlan; // only the fields the explanation reads
+
+  test("at most 3 hunks per file, then 'and N more'", () => {
+    const text = explainSyncRefusal(plan);
+    expect(text.filter((line) => line === "  Your version:")).toHaveLength(4);
+    expect(text).toContain("    mine 3");
+    expect(text).not.toContain("    mine 4");
+    expect(text).toContain("  and 2 more");
+    expect(text).toContain("  alice and bob's version on main:");
+  });
+
+  test("long and empty sides are shortened and labeled", () => {
+    const text = explainSyncRefusal(plan);
+    expect(text).toContain("    … and 3 more lines");
+    expect(text).toContain("  The version on main:");
+    expect(text).toContain("    (nothing: these lines were removed)");
+    expect(text.at(-1)).toBe(
+      "Next: agree with alice and bob on one version, edit your files to match it exactly, Save, then Sync.",
+    );
   });
 });

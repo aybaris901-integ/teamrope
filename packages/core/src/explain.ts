@@ -9,7 +9,7 @@ import type {
   StartTaskStepData,
 } from "./start-task.js";
 import { willIgnore, type SavePlan, type SaveResult, type SaveStepData } from "./save.js";
-import type { SyncPlan, SyncResult, SyncStepData } from "./sync.js";
+import type { SyncConflict, SyncPlan, SyncResult, SyncStepData } from "./sync.js";
 import type { RiskyFile, SecretReason } from "./risky-files.js";
 
 const MAX_LISTED_FILES = 5;
@@ -465,19 +465,62 @@ export function describeSyncStep(step: SyncStepData): string {
   }
 }
 
+const MAX_HUNKS_SHOWN = 3;
+const MAX_LINES_PER_SIDE = 6;
+
+function indentSide(lines: string[]): string[] {
+  if (lines.length === 0 || lines.every((line) => line.trim() === "")) {
+    return ["    (nothing: these lines were removed)"];
+  }
+  const shown = lines.slice(0, MAX_LINES_PER_SIDE).map((line) => `    ${line}`);
+  const hidden = lines.length - MAX_LINES_PER_SIDE;
+  return hidden > 0 ? [...shown, `    … and ${plural(hidden, "more line")}`] : shown;
+}
+
+function possessive(names: string[]): string {
+  return names.length === 0 ? "The version" : `${listWords(names)}'s version`;
+}
+
+function explainConflictHunks(conflict: SyncConflict, mainBranch: string): string[] {
+  const lines: string[] = [];
+  for (const hunk of conflict.hunks.slice(0, MAX_HUNKS_SHOWN)) {
+    lines.push(
+      "  Your version:",
+      ...indentSide(hunk.yours),
+      `  ${possessive(conflict.authors)} on ${mainBranch}:`,
+      ...indentSide(hunk.theirs),
+    );
+  }
+  const hidden = conflict.hunks.length - MAX_HUNKS_SHOWN;
+  if (hidden > 0) lines.push(`  and ${hidden} more`);
+  return lines;
+}
+
+function explainConflicts(plan: SyncPlan): string[] {
+  const lines = [
+    `Syncing now would cause a conflict: ${plan.mainBranch} changed the same lines you did. I didn't change anything.`,
+  ];
+  for (const conflict of plan.conflicts) {
+    lines.push(
+      conflict.authors.length > 0
+        ? `${listWords(conflict.authors)} changed the same part of ${conflict.path}. Talk to them before syncing.`
+        : `${conflict.path} was also changed on ${plan.mainBranch}. Find out who changed it before syncing.`,
+      ...explainConflictHunks(conflict, plan.mainBranch),
+    );
+  }
+  const authors = [...new Set(plan.conflicts.flatMap((conflict) => conflict.authors))];
+  const who = authors.length > 0 ? listWords(authors) : "your team";
+  const files = plan.conflicts.length === 1 ? "your file" : "your files";
+  lines.push(
+    `Next: agree with ${who} on one version, edit ${files} to match it exactly, Save, then Sync.`,
+  );
+  return lines;
+}
+
 /** Why Sync won't run: refused, already up to date, or a predicted conflict. */
 export function explainSyncRefusal(plan: SyncPlan): string[] {
   if (plan.upToDate) return [`You already have everything from ${plan.mainBranch}.`];
-  if (plan.conflicts.length > 0) {
-    return [
-      `Syncing now would cause a conflict: ${plan.mainBranch} changed the same lines you did. I didn't change anything.`,
-      ...plan.conflicts.map((conflict) =>
-        conflict.authors.length > 0
-          ? `${listWords(conflict.authors)} changed the same part of ${conflict.path}. Talk to them before syncing.`
-          : `${conflict.path} was also changed on ${plan.mainBranch}. Find out who changed it before syncing.`,
-      ),
-    ];
-  }
+  if (plan.conflicts.length > 0) return explainConflicts(plan);
   switch (plan.refusal) {
     case "saveFirst":
       return [`You have unsaved changes. Save first, then Sync.`];
