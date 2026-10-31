@@ -177,19 +177,12 @@ export function willIgnore(plan: SavePlan, risky: RiskyFile): boolean {
   return plan.ignorableSecrets.includes(risky.path) && plan.ignoreChoices[risky.path] !== false;
 }
 
-/** Secrets that aren't tracked and aren't matched by .gitignore yet. */
-async function ignorableSecrets(git: SimpleGit, risky: RiskyFile[]): Promise<string[]> {
-  const result: string[] = [];
-  for (const file of risky) {
-    if (file.kind !== "secret" || file.tracked) continue;
-    try {
-      await git.raw(["check-ignore", "--quiet", "--", `:(top,literal)${file.path}`]);
-      // Exit 0: already ignored.
-    } catch {
-      result.push(file.path); // exit 1: not ignored
-    }
-  }
-  return result;
+/**
+ * Secrets that .gitignore can cover: untracked ones. They're never ignored
+ * already, because `git status` doesn't list ignored untracked files.
+ */
+function ignorableSecrets(risky: RiskyFile[]): string[] {
+  return risky.filter((file) => file.kind === "secret" && !file.tracked).map((file) => file.path);
 }
 
 async function changedFiles(git: SimpleGit, repoRoot: string): Promise<ChangedFile[]> {
@@ -258,7 +251,7 @@ export async function planSave(dir: string, options: SaveOptions = {}): Promise<
     startTask,
     branch: startTask ? startTask.branch : base.branch,
     risky,
-    ignorableSecrets: await ignorableSecrets(git, risky),
+    ignorableSecrets: ignorableSecrets(risky),
     uploadBlocked: !diagnosis.onMain && (diagnosis.behindUpstream ?? 0) > 0,
   };
   return { ...plan, steps: buildSteps(plan) };
