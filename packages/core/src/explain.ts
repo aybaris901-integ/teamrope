@@ -2,6 +2,12 @@
 // Pure functions only - callers decide how to show them.
 import type { Diagnosis, OperationInProgress } from "./diagnose.js";
 import type { RemoteProblem } from "./remote-problem.js";
+import type {
+  StartTaskPlan,
+  StartTaskResult,
+  StartTaskStep,
+  StartTaskStepData,
+} from "./start-task.js";
 
 const MAX_LISTED_FILES = 5;
 
@@ -190,4 +196,90 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation
   }
 
   return { summary: sentences, next: explainNextAction(d) };
+}
+
+// --- Start task ------------------------------------------------------------
+
+function describeCarried(files: number, commits: number): string {
+  const parts: string[] = [];
+  if (files > 0) parts.push(plural(files, "unsaved file"));
+  if (commits > 0) parts.push(plural(commits, "commit"));
+  return parts.join(" and ");
+}
+
+/** One plain-English line saying what a step will do. */
+export function describeStartTaskStep(step: StartTaskStepData): string {
+  switch (step.kind) {
+    case "saveName":
+      return `Remember "${step.name}" as your name in this repo, so your branches start with "${step.name}/".`;
+    case "createBranch":
+      return step.carry
+        ? `Create your own branch ${step.branch} right where you are, so it keeps your ${describeCarried(step.carriedFiles, step.carriedCommits)}.`
+        : `Create your own branch ${step.branch} from the team's latest main and switch to it.`;
+    case "moveMain":
+      return "Back up your main, then move it back to match the team's main (your commits stay on your new branch).";
+    case "push":
+      return `Upload ${step.branch} to the team repo so everyone can see it.`;
+  }
+}
+
+/** Why Start task won't run, plus the diagnosis behind it. */
+export function explainStartTaskRefusal(plan: StartTaskPlan): string[] {
+  const { summary, next } = explainDiagnosis(plan.diagnosis, plan.mainBranch);
+  switch (plan.refusal) {
+    case "saveFirst":
+      return [
+        ...summary,
+        `You have unsaved changes on your branch ${plan.diagnosis.currentBranch}. Save first, then start a new task.`,
+      ];
+    case "noMainOnRemote":
+      return [
+        ...summary,
+        `The team repo has no ${plan.mainBranch} branch yet, so there's nothing to start from. Ask your captain to upload ${plan.mainBranch} first.`,
+      ];
+    default:
+      return ["I can't start a new task right now.", ...summary, next];
+  }
+}
+
+function explainDoneStep(step: StartTaskStep, plan: StartTaskPlan, result: StartTaskResult): string {
+  switch (step.kind) {
+    case "saveName":
+      return `Saved "${step.name}" as your name in this repo.`;
+    case "createBranch":
+      return step.carry
+        ? `You're now on your own branch ${step.branch}, with your ${describeCarried(step.carriedFiles, step.carriedCommits)}.`
+        : `You're now on your own branch ${step.branch}, starting from the team's latest main.`;
+    case "moveMain": {
+      const backup = result.backups.find((b) => b.of === plan.mainBranch)?.ref ?? "a backup ref";
+      return `Moved your ${plan.mainBranch} back to match the team's. Your old ${plan.mainBranch} is backed up as ${backup}. To put it back: \`git branch -f ${plan.mainBranch} ${backup}\`.`;
+    }
+    case "push": {
+      const create = plan.steps.find((s) => s.kind === "createBranch");
+      const unsaved = create?.kind === "createBranch" ? create.carriedFiles : 0;
+      return unsaved > 0
+        ? `Uploaded ${step.branch} to the team repo. Your unsaved changes are still only on your computer until you Save.`
+        : `Uploaded ${step.branch} to the team repo.`;
+    }
+  }
+}
+
+/** What Start task did, step by step, and what went wrong if anything. */
+export function explainStartTaskResult(plan: StartTaskPlan, result: StartTaskResult): string[] {
+  const lines = result.completed.map((step) => explainDoneStep(step, plan, result));
+  if (result.pushProblem) {
+    const [meaning, whatToDo] = explainRemoteProblem(result.pushProblem);
+    lines.push(
+      `Your branch ${plan.branch} is safe on your computer, but uploading it failed. ${meaning}`,
+      `${whatToDo} Then Save will upload it.`,
+    );
+  } else if (result.failedStep) {
+    lines.push(
+      `I stopped before this step: ${result.failedStep.description} Reason: ${endSentence(result.error ?? "unknown error")}`,
+      result.completed.length === 0
+        ? "Nothing was changed."
+        : "Nothing after that was changed.",
+    );
+  }
+  return lines;
 }

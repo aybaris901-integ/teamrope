@@ -1,6 +1,7 @@
 // Shared helpers for running Git through simple-git.
 import { existsSync, statSync } from "node:fs";
 import { GitPluginError, simpleGit, type SimpleGit } from "simple-git";
+import { classifyRemoteProblem, type RemoteProblem } from "./remote-problem.js";
 
 /**
  * Any Git command that stays silent this long is killed (e.g. a hanging fetch).
@@ -89,11 +90,7 @@ export function cleanGitEnv(
 }
 
 async function hasSshCommandConfig(git: SimpleGit): Promise<boolean> {
-  try {
-    return (await git.raw(["config", "--get", "core.sshCommand"])).trim() !== "";
-  } catch {
-    return false;
-  }
+  return (await readConfig(git, "core.sshCommand")) !== null;
 }
 
 /**
@@ -131,6 +128,58 @@ export async function openRepo(dir: string): Promise<SimpleGit> {
   // or the user's config already sets one.
   if (await hasSshCommandConfig(git)) git.env(cleanGitEnv(process.env, true));
   return git;
+}
+
+/** Reads one Git config value (any scope). Null if it isn't set. */
+export async function readConfig(git: SimpleGit, key: string): Promise<string | null> {
+  try {
+    const value = (await git.raw(["config", "--get", key])).trim();
+    return value === "" ? null : value;
+  } catch {
+    return null;
+  }
+}
+
+/** Full commit id of a ref, or null if the ref doesn't exist. */
+export async function resolveRef(git: SimpleGit, ref: string): Promise<string | null> {
+  try {
+    return (await git.raw(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`])).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** e.g. 20261101-142305-123 (UTC), sortable and safe in a ref name. */
+function backupTimestamp(date = new Date()): string {
+  const iso = date.toISOString(); // 2026-11-01T14:23:05.123Z
+  return `${iso.slice(0, 10).replaceAll("-", "")}-${iso.slice(11, 19).replaceAll(":", "")}-${iso.slice(20, 23)}`;
+}
+
+/**
+ * Saves `commit` as refs/branchguard/backup/<timestamp>-<what> before a ref
+ * is moved, so the old position can always be restored. Never overwrites an
+ * existing backup. Returns the backup ref's name.
+ */
+export async function createBackupRef(
+  git: SimpleGit,
+  what: string,
+  commit: string,
+): Promise<string> {
+  const ref = `refs/branchguard/backup/${backupTimestamp()}-${what.replaceAll("/", "-")}`;
+  // An empty old value makes update-ref fail if the ref already exists.
+  await git.raw(["update-ref", "-m", "branchguard backup", ref, commit, ""]);
+  return ref;
+}
+
+/** Turns an error from a fetch or push into a RemoteProblem. */
+export function remoteProblemFromError(error: unknown): RemoteProblem {
+  if (error instanceof GitPluginError && error.plugin === "timeout") {
+    return {
+      kind: "timeout",
+      detail: `No answer from the remote after ${GIT_TIMEOUT_MS / 1000} seconds.`,
+    };
+  }
+  return classifyRemoteProblem(error instanceof Error ? error.message : String(error));
 }
 
 /** Counts commits in a range like "HEAD..origin/main". Null if a ref is missing. */

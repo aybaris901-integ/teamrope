@@ -11,6 +11,8 @@
 #                          missing path, so fetch fails (no access to remote)
 #   playground/frank       on frank/feature, stuck mid-merge of alice/feature
 #                          with a conflict in src/app.js
+#   playground/dave        on main, up to date, with an uncommitted edit
+#                          (started coding on main)
 #
 # Safe to re-run: deletes ./playground and rebuilds it from scratch.
 
@@ -131,6 +133,11 @@ if git -C "$PLAYGROUND/frank" merge --no-edit origin/alice/feature >/dev/null; t
   exit 1
 fi
 
+# --- dave: started coding straight on main, nothing committed ---------------
+
+clone_as dave
+printf '\nconsole.log("dave was here");\n' >> "$PLAYGROUND/dave/src/app.js"
+
 # --- carol: uncommitted change on the same line alice changed ---------------
 
 git -C "$PLAYGROUND/carol" fetch --quiet origin
@@ -145,3 +152,4 @@ echo "  bob:   1 unpushed commit on main"
 echo "  carol: carol/feature, behind main, uncommitted change conflicting with alice/feature"
 echo "  eve:   eve/feature, clean, origin unreachable"
 echo "  frank: frank/feature, stuck mid-merge with a conflict in src/app.js"
+echo "  dave:  on main, up to date, uncommitted edit in src/app.js"

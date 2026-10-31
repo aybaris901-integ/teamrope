@@ -54,6 +54,7 @@ bob: on main with one local commit that was never pushed.
 carol: on carol/feature, branched before main's last commit (1 behind), uncommitted edit to src/app.js on the line alice changed.
 eve: on eve/feature, clean, but origin points to a missing path, so fetch fails.
 frank: on frank/feature, stuck mid-merge of alice/feature with a conflict in src/app.js.
+dave: on main, up to date, with an uncommitted edit to src/app.js (started coding on main).
 
 When adding a feature, add the broken state that exercises it.
 npm test rebuilds the playground automatically (vitest globalSetup) and runs with a temp HOME, so your global Git config doesn't affect tests. Run bash scripts/broken-repo.sh by hand to inspect the clones.

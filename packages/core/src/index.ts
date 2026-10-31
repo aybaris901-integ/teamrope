@@ -8,10 +8,30 @@ export {
   type NextAction,
   type OperationInProgress,
 } from "./diagnose.js";
-export { explainDiagnosis, explainRemoteProblem, type Explanation } from "./explain.js";
+export {
+  describeStartTaskStep,
+  explainDiagnosis,
+  explainRemoteProblem,
+  explainStartTaskRefusal,
+  explainStartTaskResult,
+  type Explanation,
+} from "./explain.js";
 export { BlockedEnvVarError, NotAGitRepoError } from "./git.js";
 export {
   classifyRemoteProblem,
   type RemoteProblem,
   type RemoteProblemKind,
 } from "./remote-problem.js";
+export {
+  executeStartTask,
+  MEMBER_NAME_KEY,
+  planStartTask,
+  readMemberName,
+  slugify,
+  type BackupRef,
+  type StartTaskOptions,
+  type StartTaskPlan,
+  type StartTaskRefusal,
+  type StartTaskResult,
+  type StartTaskStep,
+} from "./start-task.js";

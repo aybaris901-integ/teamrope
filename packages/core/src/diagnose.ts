@@ -2,9 +2,9 @@
 // The only thing it changes is the remote-tracking refs, via `git fetch`.
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { GitPluginError, type SimpleGit } from "simple-git";
-import { countCommits, GIT_TIMEOUT_MS, openRepo } from "./git.js";
-import { classifyRemoteProblem, type RemoteProblem } from "./remote-problem.js";
+import type { SimpleGit } from "simple-git";
+import { countCommits, openRepo, remoteProblemFromError } from "./git.js";
+import type { RemoteProblem } from "./remote-problem.js";
 
 export type OperationInProgress = "merge" | "rebase" | "cherry-pick" | "revert";
 
@@ -116,16 +116,6 @@ async function fetchOrigin(
     await git.raw(["fetch", "--quiet", "origin"]);
     return { canReachRemote: true, remoteProblem: null };
   } catch (error) {
-    return { canReachRemote: false, remoteProblem: toRemoteProblem(error) };
+    return { canReachRemote: false, remoteProblem: remoteProblemFromError(error) };
   }
-}
-
-function toRemoteProblem(error: unknown): RemoteProblem {
-  if (error instanceof GitPluginError && error.plugin === "timeout") {
-    return {
-      kind: "timeout",
-      detail: `No answer from the remote after ${GIT_TIMEOUT_MS / 1000} seconds.`,
-    };
-  }
-  return classifyRemoteProblem(error instanceof Error ? error.message : String(error));
 }

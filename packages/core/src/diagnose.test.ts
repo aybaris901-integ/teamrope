@@ -53,6 +53,14 @@ describe("diagnose", () => {
     expect(d.nextAction).toBe("fixAccess");
   });
 
+  test("dave: started coding on main", async () => {
+    const d = await diagnose(clone("dave"));
+    expect(d.onMain).toBe(true);
+    expect(d.dirtyFiles).toEqual(["src/app.js"]);
+    expect(d.unpushedCommitsOnMain).toBe(0);
+    expect(d.nextAction).toBe("startTask");
+  });
+
   test("frank: stuck in the middle of a merge with a conflict", async () => {
     const d = await diagnose(clone("frank"));
     expect(d.inProgress).toBe("merge");
