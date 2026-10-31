@@ -1,9 +1,16 @@
 // Explain layer: turns core results into short plain-English sentences.
 // Pure functions only - callers decide how to show them.
-import type { Diagnosis } from "./diagnose.js";
+import type { Diagnosis, OperationInProgress } from "./diagnose.js";
 import type { RemoteProblem } from "./remote-problem.js";
 
 const MAX_LISTED_FILES = 5;
+
+const OPERATION_DESCRIPTIONS: Record<OperationInProgress, string> = {
+  merge: "a merge (combining another branch into yours)",
+  rebase: "a rebase (replaying your commits on top of another branch)",
+  "cherry-pick": "a cherry-pick (copying a commit from another branch)",
+  revert: "a revert (undoing an earlier commit)",
+};
 
 function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
@@ -71,7 +78,14 @@ export function explainRemoteProblem(problem: RemoteProblem): [string, string] {
 export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): string[] {
   const sentences: string[] = [];
 
-  // First, because everything below is based on possibly old remote data.
+  if (d.inProgress) {
+    sentences.push(
+      `You're in the middle of ${OPERATION_DESCRIPTIONS[d.inProgress]}, and Git is waiting for it to be finished or cancelled.`,
+      "I won't change anything until it's done. Ask your captain for help if you're stuck.",
+    );
+  }
+
+  // Before the rest, because it's all based on possibly old remote data.
   if (d.remoteProblem) {
     sentences.push(
       "I couldn't reach the team repo, so the rest may be out of date.",
@@ -80,9 +94,12 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): string[] {
   }
 
   if (d.detached) {
-    sentences.push(
-      `You're not on any branch right now (Git calls this "detached HEAD"), so new work could get lost. Ask your captain for help before saving.`,
-    );
+    // A rebase detaches HEAD on purpose; the in-progress sentence covers it.
+    if (!d.inProgress) {
+      sentences.push(
+        `You're not on any branch right now (Git calls this "detached HEAD"), so new work could get lost. Ask your captain for help before saving.`,
+      );
+    }
   } else if (d.onMain) {
     sentences.push(
       `You're on ${mainBranch}, the branch the whole team shares. Start a task to get your own branch before changing things.`,

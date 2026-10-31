@@ -9,6 +9,8 @@
 #                          in src/app.js that conflict with alice/feature
 #   playground/eve         on eve/feature, clean, but origin's URL points to a
 #                          missing path, so fetch fails (no access to remote)
+#   playground/frank       on frank/feature, stuck mid-merge of alice/feature
+#                          with a conflict in src/app.js
 #
 # Safe to re-run: deletes ./playground and rebuilds it from scratch.
 
@@ -116,6 +118,19 @@ commit_as eve "Add notes"
 git -C "$PLAYGROUND/eve" push --quiet -u origin eve/feature
 git -C "$PLAYGROUND/eve" remote set-url origin "$PLAYGROUND/missing-origin.git"
 
+# --- frank: own branch, stuck in the middle of a conflicting merge ----------
+
+clone_as frank
+git -C "$PLAYGROUND/frank" switch --quiet -c frank/feature
+sed -i 's/return "Hello";/return "Hey there";/' "$PLAYGROUND/frank/src/app.js"
+commit_as frank "Change greeting"
+git -C "$PLAYGROUND/frank" push --quiet -u origin frank/feature
+# Same line as alice/feature, so the merge must stop on a conflict.
+if git -C "$PLAYGROUND/frank" merge --no-edit origin/alice/feature >/dev/null; then
+  echo "frank: expected a merge conflict, but the merge succeeded" >&2
+  exit 1
+fi
+
 # --- carol: uncommitted change on the same line alice changed ---------------
 
 git -C "$PLAYGROUND/carol" fetch --quiet origin
@@ -129,3 +144,4 @@ echo "  alice: alice/feature, clean, up to date"
 echo "  bob:   1 unpushed commit on main"
 echo "  carol: carol/feature, behind main, uncommitted change conflicting with alice/feature"
 echo "  eve:   eve/feature, clean, origin unreachable"
+echo "  frank: frank/feature, stuck mid-merge with a conflict in src/app.js"

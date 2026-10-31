@@ -22,6 +22,7 @@ describe("diagnose", () => {
     expect(d.canReachRemote).toBe(true);
     expect(d.remoteProblem).toBeNull();
     expect(d.supportsMergeTree).toBe(true);
+    expect(d.inProgress).toBeNull();
   });
 
   test("bob: committed on main without pushing", async () => {
@@ -45,6 +46,13 @@ describe("diagnose", () => {
     expect(d.remoteProblem?.kind).toBe("notFoundOrNoAccess");
     expect(d.remoteProblem?.detail).toMatch(/missing-origin\.git/);
     expect(d.currentBranch).toBe("eve/feature");
+  });
+
+  test("frank: stuck in the middle of a merge with a conflict", async () => {
+    const d = await diagnose(clone("frank"));
+    expect(d.inProgress).toBe("merge");
+    expect(d.currentBranch).toBe("frank/feature");
+    expect(d.dirtyFiles).toContain("src/app.js");
   });
 
   describe("outside a repo", () => {
