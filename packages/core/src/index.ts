@@ -1,4 +1,6 @@
 // Public API of @branchguard/core.
 // All Git logic lives here. Functions return plain data objects:
 // no printing, no prompts, no VS Code APIs.
-export {};
+export { diagnose, type Diagnosis } from "./diagnose.js";
+export { explainDiagnosis } from "./explain.js";
+export { NotAGitRepoError } from "./git.js";
