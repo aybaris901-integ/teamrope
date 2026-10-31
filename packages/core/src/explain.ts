@@ -86,6 +86,8 @@ function explainNextAction(d: Diagnosis): string {
   switch (d.nextAction) {
     case "finishOperation":
       return `Next: finish or cancel the ${d.inProgress ?? "operation"} (ask your captain if you're stuck)`;
+    case "askCaptain":
+      return "Next: ask your captain for help before changing anything. If you're the captain: `git switch -c rescue/<name>` keeps everything you have.";
     case "fixAccess":
       return "Next: fix access to the team repo (see above)";
     case "startTask":

@@ -8,7 +8,13 @@ import { classifyRemoteProblem, type RemoteProblem } from "./remote-problem.js";
 
 export type OperationInProgress = "merge" | "rebase" | "cherry-pick" | "revert";
 
-export type NextAction = "startTask" | "save" | "sync" | "finishOperation" | "fixAccess";
+export type NextAction =
+  | "startTask"
+  | "save"
+  | "sync"
+  | "finishOperation"
+  | "askCaptain"
+  | "fixAccess";
 
 export interface Diagnosis {
   gitVersion: string;
@@ -41,6 +47,7 @@ export interface Diagnosis {
 /** Picks exactly one next action, most urgent first. */
 export function pickNextAction(d: Omit<Diagnosis, "nextAction">): NextAction | null {
   if (d.inProgress) return "finishOperation";
+  if (d.detached) return "askCaptain";
   if (!d.canReachRemote) return "fixAccess";
   if (d.onMain) return "startTask";
   if (d.dirtyFiles.length > 0) return "save";

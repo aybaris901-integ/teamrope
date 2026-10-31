@@ -113,7 +113,8 @@ describe("pickNextAction", () => {
       dirtyFiles: ["a.js"],
       behindMain: 3,
     };
-    expect(pickNextAction(everything)).toBe("finishOperation");
+    expect(pickNextAction({ ...everything, detached: true })).toBe("finishOperation");
+    expect(pickNextAction({ ...everything, inProgress: null, detached: true })).toBe("askCaptain");
     expect(pickNextAction({ ...everything, inProgress: null })).toBe("fixAccess");
     expect(pickNextAction({ ...everything, inProgress: null, canReachRemote: true })).toBe(
       "startTask",

@@ -104,6 +104,21 @@ describe("explainDiagnosis", () => {
     expect(text).not.toContain("up to date with main");
   });
 
+  test("detached HEAD: ask the captain, with the rescue command for the captain", () => {
+    const { summary, next } = explainDiagnosis({
+      ...base,
+      currentBranch: null,
+      detached: true,
+      dirtyFiles: ["src/app.js"],
+      nextAction: "askCaptain",
+    });
+    expect(summary.join(" ")).toContain("detached HEAD");
+    expect(next).toMatch(/^Next: ask your captain/);
+    expect(next).toMatch(
+      /If you're the captain: `git switch -c rescue\/<name>` keeps everything you have\.$/,
+    );
+  });
+
   test("nothing to do", () => {
     expect(explainDiagnosis(base).next).toBe("Nothing to do, keep coding.");
   });
