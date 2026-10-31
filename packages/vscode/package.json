@@ -1,0 +1,85 @@
+{
+  "name": "branchguard",
+  "displayName": "branchguard",
+  "description": "Keeps hackathon teams from breaking their Git repo: Start task, Save, Sync and Team status, explained in plain English.",
+  "version": "0.0.1",
+  "publisher": "branchguard-dev",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "SCM Providers"
+  ],
+  "main": "./dist/extension.js",
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "activationEvents": [
+    "workspaceContains:.git"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "branchguard",
+          "title": "branchguard",
+          "icon": "media/branchguard.svg"
+        }
+      ]
+    },
+    "views": {
+      "branchguard": [
+        { "id": "branchguard.you", "name": "You" },
+        { "id": "branchguard.actions", "name": "Actions" },
+        { "id": "branchguard.team", "name": "Team" }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "branchguard.you",
+        "contents": "Open your team's repo folder to get started.\n[Open Folder](command:vscode.openFolder)",
+        "when": "workbenchState == empty"
+      },
+      {
+        "view": "branchguard.you",
+        "contents": "This folder isn't a Git repo yet. Open your team's repo folder, or clone it.\n[Clone Repository](command:git.clone)\n[Open Folder](command:vscode.openFolder)",
+        "when": "workbenchState != empty && branchguard.noRepo"
+      }
+    ],
+    "commands": [
+      { "command": "branchguard.startTask", "title": "Start task", "category": "branchguard", "icon": "$(add)" },
+      { "command": "branchguard.save", "title": "Save", "category": "branchguard", "icon": "$(cloud-upload)" },
+      { "command": "branchguard.sync", "title": "Sync", "category": "branchguard", "icon": "$(sync)" },
+      { "command": "branchguard.teamStatus", "title": "Team status", "category": "branchguard", "icon": "$(organization)" },
+      { "command": "branchguard.refresh", "title": "Refresh", "category": "branchguard", "icon": "$(refresh)" },
+      { "command": "branchguard.runNext", "title": "Do the next step", "category": "branchguard" },
+      { "command": "branchguard.showProblem", "title": "Show problem", "category": "branchguard" }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "branchguard.refresh",
+          "when": "view == branchguard.you || view == branchguard.team",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        { "command": "branchguard.showProblem", "when": "false" }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc --noEmit -p . && node esbuild.mjs",
+    "package": "vsce package --no-dependencies --allow-missing-repository --skip-license"
+  },
+  "dependencies": {
+    "@branchguard/core": "0.0.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.90.0",
+    "@vscode/vsce": "^4.1.0",
+    "esbuild": "^0.28.2"
+  }
+}

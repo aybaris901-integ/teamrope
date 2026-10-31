@@ -111,6 +111,26 @@ function explainNextAction(d: Diagnosis): string {
   }
 }
 
+/** A few words for the next step (status bars, buttons). Null if nothing to do. */
+export function shortNextAction(d: Diagnosis): string | null {
+  switch (d.nextAction) {
+    case "startTask":
+      return "Start task";
+    case "save":
+      return "Save";
+    case "sync":
+      return "Sync";
+    case "finishOperation":
+      return `finish the ${d.inProgress ?? "operation"}`;
+    case "askCaptain":
+      return "ask your captain";
+    case "fixAccess":
+      return "fix access";
+    case null:
+      return null;
+  }
+}
+
 export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation {
   const sentences: string[] = [];
 
@@ -308,6 +328,18 @@ const SECRET_REASONS: Record<SecretReason, string> = {
 
 function megabytes(bytes: number): string {
   return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
+
+/** Why a file is risky, in a few words (for lists like a quick pick). */
+export function riskyFileReason(risky: RiskyFile): string {
+  switch (risky.kind) {
+    case "secret":
+      return `may be a secret: ${SECRET_REASONS[risky.reason]}`;
+    case "generated":
+      return `generated files (${plural(risky.fileCount, "file")}) that don't belong in Git`;
+    case "large":
+      return `${megabytes(risky.sizeBytes)}, too big for Git`;
+  }
 }
 
 /** A yes/no question about one risky file, and what "yes" means. */
@@ -585,7 +617,7 @@ export function timeAgo(date: Date, now: Date): string {
   return `${days} ${days === 1 ? "day" : "days"} ago`;
 }
 
-function explainTeamProblem(problem: TeamProblem, mainBranch: string): string {
+export function explainTeamProblem(problem: TeamProblem, mainBranch: string): string {
   switch (problem.kind) {
     case "conflictWithMain": {
       const { owner, branch, conflicts } = problem;
@@ -638,6 +670,30 @@ function formatTable(rows: string[][]): string[] {
   );
 }
 
+export const TEAM_STATUS_FOOTER = "This only shows uploaded work. Ask everyone to Save often.";
+
+/** The table of active branches as aligned text lines, header first. Empty if none. */
+export function teamStatusTable(status: TeamStatus): string[] {
+  if (status.branches.length === 0) return [];
+  return formatTable([
+    ["who", "branch", "last save", "ahead/behind", "status"],
+    ...status.branches.map((b) => [
+      b.owner,
+      b.branch,
+      timeAgo(b.lastSave, status.now),
+      `+${b.ahead} / -${b.behind}`,
+      branchStatusLabel(b, status),
+    ]),
+  ]);
+}
+
+/** "and 2 old branches (no save for over a day)", or null if there are none. */
+export function explainOldBranches(status: TeamStatus): string | null {
+  return status.oldBranches.length > 0
+    ? `and ${plural(status.oldBranches.length, "old branch")} (no save for over a day)`
+    : null;
+}
+
 /** The whole Team status report, line by line, problems first. */
 export function explainTeamStatus(status: TeamStatus): string[] {
   const lines: string[] = [];
@@ -656,25 +712,11 @@ export function explainTeamStatus(status: TeamStatus): string[] {
   }
   lines.push("");
 
-  if (status.branches.length === 0) {
-    lines.push("Nobody has saved work to the team repo in the last day.");
-  } else {
-    const rows = [
-      ["who", "branch", "last save", "ahead/behind", "status"],
-      ...status.branches.map((b) => [
-        b.owner,
-        b.branch,
-        timeAgo(b.lastSave, status.now),
-        `+${b.ahead} / -${b.behind}`,
-        branchStatusLabel(b, status),
-      ]),
-    ];
-    lines.push(...formatTable(rows));
-  }
-  if (status.oldBranches.length > 0) {
-    lines.push(`and ${plural(status.oldBranches.length, "old branch")} (no save for over a day)`);
-  }
+  const table = teamStatusTable(status);
+  lines.push(...(table.length > 0 ? table : ["Nobody has saved work to the team repo in the last day."]));
+  const old = explainOldBranches(status);
+  if (old) lines.push(old);
 
-  lines.push("", "This only shows uploaded work. Ask everyone to Save often.");
+  lines.push("", TEAM_STATUS_FOOTER);
   return lines;
 }

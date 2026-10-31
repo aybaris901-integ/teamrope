@@ -64,7 +64,9 @@ Commands
 npm install
 bash scripts/broken-repo.sh   # rebuild test playground
 npm test                      # vitest across workspaces (rebuilds playground first)
-npm run build
+npm run build                 # core + cli (tsc -b), then the extension bundle (esbuild)
+npm run package -w branchguard                                   # build packages/vscode/branchguard-0.0.1.vsix
+code --install-extension packages/vscode/branchguard-0.0.1.vsix --force   # install it locally
 
 Update this section when scripts change.
 
