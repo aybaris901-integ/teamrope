@@ -13,6 +13,7 @@ import {
 } from "./git.js";
 import { describeStartTaskStep } from "./explain.js";
 import type { RemoteProblem } from "./remote-problem.js";
+import { cliRemoteOps, type RemoteOps, type RemoteOptions } from "./remote-ops.js";
 
 /** Repo-local config key holding the member's name (the branch prefix). */
 export const MEMBER_NAME_KEY = "branchguard.name";
@@ -66,6 +67,7 @@ export interface StartTaskOptions {
   memberName?: string;
   /** Plan even if the remote can't be reached (Save commits locally anyway). */
   allowUnreachableRemote?: boolean;
+  remoteOps?: RemoteOps;
   mainBranch?: string;
 }
 
@@ -178,7 +180,8 @@ export async function planStartTask(
   options: StartTaskOptions = {},
 ): Promise<StartTaskPlan> {
   const mainBranch = options.mainBranch ?? "main";
-  const diagnosis = await diagnose(dir, mainBranch); // fetches, so origin/<main> is fresh
+  // Fetches, so origin/<main> is fresh.
+  const diagnosis = await diagnose(dir, mainBranch, { remoteOps: options.remoteOps });
   const refusal = refusalFor(diagnosis, options);
   if (refusal) {
     return {
@@ -268,6 +271,7 @@ export async function runStartTaskStep(
   plan: StartTaskPlan,
   step: StartTaskStep,
   backups: BackupRef[],
+  remoteOps: RemoteOps,
 ): Promise<void> {
   switch (step.kind) {
     case "saveName":
@@ -294,14 +298,18 @@ export async function runStartTaskStep(
     }
     case "push":
       if (step.branch === plan.mainBranch) throw new Error("Refusing to push to main.");
-      await git.raw(["push", "--set-upstream", "origin", step.branch]);
+      await remoteOps.push(step.branch, { setUpstream: true });
       return;
   }
 }
 
-export async function executeStartTask(plan: StartTaskPlan): Promise<StartTaskResult> {
+export async function executeStartTask(
+  plan: StartTaskPlan,
+  options: RemoteOptions = {},
+): Promise<StartTaskResult> {
   if (!plan.canRun) throw new Error("This plan was refused and can't be executed.");
   const git = await openRepo(plan.dir);
+  const remoteOps = options.remoteOps ?? cliRemoteOps(git);
   const result: StartTaskResult = { ok: false, completed: [], backups: [] };
 
   try {
@@ -312,7 +320,7 @@ export async function executeStartTask(plan: StartTaskPlan): Promise<StartTaskRe
 
   for (const step of plan.steps) {
     try {
-      await runStartTaskStep(git, plan, step, result.backups);
+      await runStartTaskStep(git, plan, step, result.backups, remoteOps);
       result.completed.push(step);
     } catch (error) {
       // Updating main on a clean start is a bonus: skip it silently.

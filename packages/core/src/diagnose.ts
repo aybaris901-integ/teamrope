@@ -3,7 +3,8 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { SimpleGit } from "simple-git";
-import { countCommits, fetchOrigin, gitVersion, openRepo } from "./git.js";
+import { countCommits, gitVersion, openRepo } from "./git.js";
+import { fetchOrigin, type RemoteOps, type RemoteState } from "./remote-ops.js";
 import type { RemoteProblem } from "./remote-problem.js";
 
 export type OperationInProgress = "merge" | "rebase" | "cherry-pick" | "revert";
@@ -55,12 +56,27 @@ export function pickNextAction(d: Omit<Diagnosis, "nextAction">): NextAction | n
   return null;
 }
 
-export async function diagnose(dir: string, mainBranch = "main"): Promise<Diagnosis> {
+export interface DiagnoseOptions {
+  /** False: don't fetch (no network), use `knownRemote` instead. Default true. */
+  fetch?: boolean;
+  /** Remote state from the last fetch, used when `fetch` is false. Default: reachable. */
+  knownRemote?: RemoteState;
+  remoteOps?: RemoteOps;
+}
+
+export async function diagnose(
+  dir: string,
+  mainBranch = "main",
+  options: DiagnoseOptions = {},
+): Promise<Diagnosis> {
   const git = await openRepo(dir);
   const version = await gitVersion(git);
 
   // Fetch first so every count below uses the latest remote state.
-  const remote = await fetchOrigin(git);
+  const remote =
+    options.fetch === false
+      ? (options.knownRemote ?? { canReachRemote: true, remoteProblem: null })
+      : await fetchOrigin(git, { remoteOps: options.remoteOps });
   const status = await git.status();
 
   const upstream = status.tracking;

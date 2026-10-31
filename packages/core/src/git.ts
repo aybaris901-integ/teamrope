@@ -1,5 +1,6 @@
 // Shared helpers for running Git through simple-git.
 import { existsSync, statSync } from "node:fs";
+import path from "node:path";
 import { GitPluginError, simpleGit, type SimpleGit } from "simple-git";
 import { classifyRemoteProblem, type RemoteProblem } from "./remote-problem.js";
 
@@ -93,6 +94,24 @@ async function hasSshCommandConfig(git: SimpleGit): Promise<boolean> {
   return (await readConfig(git, "core.sshCommand")) !== null;
 }
 
+let gitBinary = "git";
+
+/**
+ * Chooses the git program core runs, e.g. the one VS Code uses. Only an
+ * absolute path to an existing file is accepted; anything else means "git"
+ * from PATH. Returns the binary that will be used.
+ */
+export function configureGit(options: { binary?: string }): { binary: string } {
+  const candidate = options.binary;
+  const usable =
+    candidate !== undefined &&
+    path.isAbsolute(candidate) &&
+    existsSync(candidate) &&
+    statSync(candidate).isFile();
+  gitBinary = usable ? candidate : "git";
+  return { binary: gitBinary };
+}
+
 /**
  * Opens a simple-git instance for `dir`. Throws NotAGitRepoError if the
  * folder is missing or not inside a Git working tree, and BlockedEnvVarError
@@ -109,7 +128,14 @@ export async function openRepo(dir: string): Promise<SimpleGit> {
     // All of simple-git's safety checks stay on except this one: it rejects
     // any GIT_SSH_COMMAND, including our own DEFAULT_SSH_COMMAND and the
     // user's own setting.
-    unsafe: { allowUnsafeSshCommand: true },
+    unsafe: {
+      allowUnsafeSshCommand: true,
+      // simple-git rejects paths with spaces (C:\Program Files\Git\...).
+      // A configured binary was checked by configureGit and comes from the
+      // UI's own Git integration, not from repo files.
+      allowUnsafeCustomBinary: gitBinary !== "git",
+    },
+    binary: gitBinary,
   }).env(cleanGitEnv());
 
   let insideWorkTree = false;
@@ -202,20 +228,6 @@ export function remoteProblemFromError(error: unknown): RemoteProblem {
     };
   }
   return classifyRemoteProblem(error instanceof Error ? error.message : String(error));
-}
-
-/** Fetches origin. Never throws: a failure is reported as a RemoteProblem. */
-export async function fetchOrigin(
-  git: SimpleGit,
-  options: { prune?: boolean } = {},
-): Promise<{ canReachRemote: boolean; remoteProblem: RemoteProblem | null }> {
-  try {
-    // --prune only drops remote-tracking refs of branches deleted on origin.
-    await git.raw(["fetch", "--quiet", ...(options.prune ? ["--prune"] : []), "origin"]);
-    return { canReachRemote: true, remoteProblem: null };
-  } catch (error) {
-    return { canReachRemote: false, remoteProblem: remoteProblemFromError(error) };
-  }
 }
 
 /** Git's version, and whether it has `merge-tree --write-tree` (2.38+). */

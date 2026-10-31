@@ -3,7 +3,8 @@
 // via `git fetch --prune`.
 import type { SimpleGit } from "simple-git";
 import { authorsSinceSplit, predictConflicts, type DryRunMethod } from "./dry-run.js";
-import { fetchOrigin, gitVersion, openRepo, resolveRef } from "./git.js";
+import { gitVersion, openRepo, resolveRef } from "./git.js";
+import { fetchOrigin, type RemoteOps, type RemoteState } from "./remote-ops.js";
 import type { RemoteProblem } from "./remote-problem.js";
 
 /** Branches saved (newest commit) within this window are "active". */
@@ -69,6 +70,11 @@ export interface TeamStatusOptions {
   now?: Date;
   /** For tests: force a dry-run method; by default picked from the Git version. */
   dryRunMethod?: DryRunMethod;
+  /** False: use the remote refs from the last fetch. Default true. */
+  fetch?: boolean;
+  /** Remote state from the last fetch, used when `fetch` is false. */
+  knownRemote?: RemoteState;
+  remoteOps?: RemoteOps;
 }
 
 interface RefInfo {
@@ -195,7 +201,10 @@ export async function teamStatus(dir: string, options: TeamStatusOptions = {}): 
   const mainBranch = options.mainBranch ?? "main";
   const now = options.now ?? new Date();
   const git = await openRepo(dir);
-  const remote = await fetchOrigin(git, { prune: true });
+  const remote =
+    options.fetch === false
+      ? (options.knownRemote ?? { canReachRemote: true, remoteProblem: null })
+      : await fetchOrigin(git, { prune: true, remoteOps: options.remoteOps });
 
   const main = `${REMOTE_PREFIX}${mainBranch}`;
   if (!(await resolveRef(git, main))) {

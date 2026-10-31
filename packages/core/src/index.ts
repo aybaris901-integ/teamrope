@@ -4,6 +4,7 @@
 export {
   diagnose,
   pickNextAction,
+  type DiagnoseOptions,
   type Diagnosis,
   type NextAction,
   type OperationInProgress,
@@ -27,7 +28,13 @@ export {
   secretIgnoreQuestion,
   type Explanation,
 } from "./explain.js";
-export { BlockedEnvVarError, NotAGitRepoError } from "./git.js";
+export { BlockedEnvVarError, configureGit, NotAGitRepoError } from "./git.js";
+export {
+  cliRemoteOps,
+  type RemoteOps,
+  type RemoteOptions,
+  type RemoteState,
+} from "./remote-ops.js";
 export {
   classifyRemoteProblem,
   type RemoteProblem,

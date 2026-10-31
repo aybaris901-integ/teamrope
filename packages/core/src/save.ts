@@ -15,6 +15,7 @@ import {
   shortError,
 } from "./git.js";
 import type { RemoteProblem } from "./remote-problem.js";
+import { cliRemoteOps, type RemoteOps, type RemoteOptions } from "./remote-ops.js";
 import { findRiskyFiles, isCoveredBy, type ChangedFile, type RiskyFile } from "./risky-files.js";
 import {
   planStartTask,
@@ -57,6 +58,7 @@ export interface SaveOptions {
   memberName?: string;
   taskName?: string;
   mainBranch?: string;
+  remoteOps?: RemoteOps;
 }
 
 export interface SavePlan {
@@ -197,7 +199,7 @@ async function changedFiles(git: SimpleGit, repoRoot: string): Promise<ChangedFi
 
 export async function planSave(dir: string, options: SaveOptions = {}): Promise<SavePlan> {
   const mainBranch = options.mainBranch ?? "main";
-  const diagnosis = await diagnose(dir, mainBranch);
+  const diagnosis = await diagnose(dir, mainBranch, { remoteOps: options.remoteOps });
   const git = await openRepo(dir);
   const repoRoot = (await git.revparse(["--show-toplevel"])).trim();
   const files = await changedFiles(git, repoRoot);
@@ -240,6 +242,7 @@ export async function planSave(dir: string, options: SaveOptions = {}): Promise<
       memberName: options.memberName,
       mainBranch,
       allowUnreachableRemote: true, // commit locally even without access
+      remoteOps: options.remoteOps,
     });
     if (!startTask.canRun) return { ...base, refusal: startTask.refusal };
   }
@@ -292,6 +295,7 @@ async function runSaveStep(
   plan: SavePlan,
   step: SaveStep,
   backups: BackupRef[],
+  remoteOps: RemoteOps,
 ): Promise<void> {
   switch (step.kind) {
     case "ignore":
@@ -303,17 +307,21 @@ async function runSaveStep(
     case "upload":
       // Never main, never --force: a rejected push is reported, not overridden.
       if (step.branch === plan.mainBranch) throw new Error("Refusing to push to main.");
-      await git.raw(["push", "--set-upstream", "origin", step.branch]);
+      await remoteOps.push(step.branch, { setUpstream: true });
       return;
     default:
       if (!plan.startTask) throw new Error("Start task step without a Start task plan.");
-      await runStartTaskStep(git, plan.startTask, step, backups);
+      await runStartTaskStep(git, plan.startTask, step, backups, remoteOps);
   }
 }
 
-export async function executeSave(plan: SavePlan): Promise<SaveResult> {
+export async function executeSave(
+  plan: SavePlan,
+  options: RemoteOptions = {},
+): Promise<SaveResult> {
   if (!plan.canRun) throw new Error("This plan was refused and can't be executed.");
   const git = await openRepo(plan.dir);
+  const remoteOps = options.remoteOps ?? cliRemoteOps(git);
   const result: SaveResult = { ok: false, completed: [], backups: [] };
 
   if (
@@ -329,7 +337,7 @@ export async function executeSave(plan: SavePlan): Promise<SaveResult> {
 
   for (const step of plan.steps) {
     try {
-      await runSaveStep(git, plan, step, result.backups);
+      await runSaveStep(git, plan, step, result.backups, remoteOps);
       result.completed.push(step);
     } catch (error) {
       if (step.kind === "fastForwardMain") continue; // a bonus, skip silently

@@ -20,6 +20,7 @@ import {
   shortError,
 } from "./git.js";
 import type { RemoteProblem } from "./remote-problem.js";
+import { cliRemoteOps, type RemoteOps, type RemoteOptions } from "./remote-ops.js";
 import type { BackupRef } from "./start-task.js";
 
 export type SyncRefusal =
@@ -58,6 +59,7 @@ export interface SyncOptions {
   mainBranch?: string;
   /** Force a dry-run method (tests); by default picked from the Git version. */
   dryRunMethod?: DryRunMethod;
+  remoteOps?: RemoteOps;
 }
 
 export interface SyncPlan {
@@ -110,7 +112,8 @@ function refusalFor(d: Diagnosis): SyncRefusal | null {
 
 export async function planSync(dir: string, options: SyncOptions = {}): Promise<SyncPlan> {
   const mainBranch = options.mainBranch ?? "main";
-  const diagnosis = await diagnose(dir, mainBranch); // fetches, so origin/<main> is fresh
+  // Fetches, so origin/<main> is fresh.
+  const diagnosis = await diagnose(dir, mainBranch, { remoteOps: options.remoteOps });
   const git = await openRepo(dir);
   const base: SyncPlan = {
     dir,
@@ -212,9 +215,13 @@ async function runMerge(
   throw failure ?? new Error("Git stopped the merge because of a conflict.");
 }
 
-export async function executeSync(plan: SyncPlan): Promise<SyncResult> {
+export async function executeSync(
+  plan: SyncPlan,
+  options: RemoteOptions = {},
+): Promise<SyncResult> {
   if (!plan.canRun) throw new Error("This plan was refused and can't be executed.");
   const git = await openRepo(plan.dir);
+  const remoteOps = options.remoteOps ?? cliRemoteOps(git);
   const result: SyncResult = { ok: false, completed: [], backups: [] };
 
   const unchanged =
@@ -236,7 +243,7 @@ export async function executeSync(plan: SyncPlan): Promise<SyncResult> {
       } else {
         // Never main, never --force.
         if (step.branch === plan.mainBranch) throw new Error("Refusing to push to main.");
-        await git.raw(["push", "--set-upstream", "origin", step.branch]);
+        await remoteOps.push(step.branch, { setUpstream: true });
       }
       result.completed.push(step);
     } catch (error) {
