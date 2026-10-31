@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { copyPlayground, git, type PlaygroundCopy } from "../test/playground-copy.js";
-import { explainSaveRefusal, explainSaveResult } from "./explain.js";
+import { explainSavePlan, explainSaveRefusal, explainSaveResult } from "./explain.js";
 import { applySaveChoices, commitMessageFor, executeSave, planSave } from "./save.js";
 
 let pg: PlaygroundCopy;
@@ -109,6 +109,27 @@ describe("planSave + executeSave", () => {
     const result = await executeSave(await planSave(dir));
     expect(result.ok).toBe(true);
     expect(git(dir, "show", "--name-only", "--format=", "HEAD")).not.toContain(".env");
+  });
+
+  test("a secret committed before: warned about, not offered for .gitignore, not blocked", async () => {
+    const dir = pg.clone("gina");
+    git(dir, "add", "--force", ".env");
+    git(dir, "commit", "--quiet", "-m", "Oops, add .env");
+    writeFileSync(path.join(dir, ".env"), "OPENAI_API_KEY=sk-test-ffffffffffffffffffffffffffff\n");
+
+    const plan = await planSave(dir);
+    expect(plan.canRun).toBe(true);
+    expect(plan.risky).toContainEqual({ kind: "secret", path: ".env", reason: "apiKey", tracked: true });
+    expect(plan.ignorableSecrets).toEqual([]);
+    const notes = explainSavePlan(plan).join(" ");
+    expect(notes).toContain(".env is already in the repo history");
+    expect(notes).toContain("Replace the key");
+    expect(notes).toContain("Removing the file isn't enough.");
+
+    const result = await executeSave(plan);
+    expect(result.ok).toBe(true);
+    // Left out by default: the new key isn't committed.
+    expect(git(dir, "status", "--porcelain")).toBe("M .env");
   });
 
   test("alice: nothing to save", async () => {

@@ -386,9 +386,19 @@ export function explainSaveRefusal(plan: SavePlan): string[] {
   return ["I can't save right now.", ...summary, next];
 }
 
+/** Warnings for secret-looking files that were committed before. Never blocks a save. */
+export function explainTrackedSecrets(plan: SavePlan): string[] {
+  return plan.risky
+    .filter((risky) => risky.kind === "secret" && risky.tracked)
+    .map(
+      (risky) =>
+        `Warning: ${risky.path} is already in the repo history (it was saved before), so anyone with access to the repo may already have the key. Replace the key: make a new one and cancel the old one. Removing the file isn't enough.`,
+    );
+}
+
 /** Lines shown with the plan, before asking to continue. */
 export function explainSavePlan(plan: SavePlan): string[] {
-  const lines = [...explainLeftOutFiles(plan)];
+  const lines = [...explainTrackedSecrets(plan), ...explainLeftOutFiles(plan)];
   if (plan.uploadBlocked) {
     lines.push(
       `The team repo's copy of ${plan.branch} has commits you don't have, so I'll save on your computer only. Sync, then Save again to upload.`,

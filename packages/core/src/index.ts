@@ -18,6 +18,7 @@ export {
   explainSavePlan,
   explainSaveRefusal,
   explainSaveResult,
+  explainTrackedSecrets,
   riskyFileQuestion,
   secretIgnoreQuestion,
   type Explanation,
