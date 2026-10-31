@@ -74,6 +74,20 @@ describe("explainDiagnosis", () => {
     expect(midMerge.summary.join(" ")).not.toContain("Check your internet connection");
   });
 
+  test("unreachable remote: nothing about being behind or up to date with main", () => {
+    const remoteProblem = { kind: "timeout", detail: "No answer" } as const;
+    for (const behindMain of [0, 2, null]) {
+      const { summary } = explainDiagnosis({
+        ...base,
+        behindMain,
+        canReachRemote: false,
+        remoteProblem,
+        nextAction: "fixAccess",
+      });
+      expect(summary.join(" ")).not.toMatch(/up to date with main|new commit|compare with/);
+    }
+  });
+
   test("nothing to do", () => {
     expect(explainDiagnosis(base).next).toBe("Nothing to do, keep coding.");
   });

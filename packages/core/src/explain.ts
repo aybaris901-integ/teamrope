@@ -151,7 +151,9 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation
     }
   }
 
-  if (d.behindMain === null) {
+  if (!d.canReachRemote) {
+    // The comparison would use old data, so say nothing about main.
+  } else if (d.behindMain === null) {
     sentences.push(`I couldn't find the team's ${mainBranch} branch to compare with.`);
   } else if (d.behindMain > 0) {
     sentences.push(
