@@ -1,5 +1,15 @@
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { describe, expect, test } from "vitest";
 import { cleanGitEnv, DEFAULT_SSH_COMMAND } from "./git.js";
+
+describe("test environment", () => {
+  test("HOME is a temp dir with the tests' own .gitconfig", () => {
+    expect(process.env.HOME).toContain(`${tmpdir()}/branchguard-test-home-`);
+    const email = execFileSync("git", ["config", "--global", "user.email"], { encoding: "utf8" });
+    expect(email.trim()).toBe("tests@example.com");
+  });
+});
 
 describe("cleanGitEnv", () => {
   test("drops editors, pagers, password pop-ups and other rejected vars, keeps the rest", () => {
