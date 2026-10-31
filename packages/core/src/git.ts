@@ -204,6 +204,31 @@ export function remoteProblemFromError(error: unknown): RemoteProblem {
   return classifyRemoteProblem(error instanceof Error ? error.message : String(error));
 }
 
+/** Fetches origin. Never throws: a failure is reported as a RemoteProblem. */
+export async function fetchOrigin(
+  git: SimpleGit,
+  options: { prune?: boolean } = {},
+): Promise<{ canReachRemote: boolean; remoteProblem: RemoteProblem | null }> {
+  try {
+    // --prune only drops remote-tracking refs of branches deleted on origin.
+    await git.raw(["fetch", "--quiet", ...(options.prune ? ["--prune"] : []), "origin"]);
+    return { canReachRemote: true, remoteProblem: null };
+  } catch (error) {
+    return { canReachRemote: false, remoteProblem: remoteProblemFromError(error) };
+  }
+}
+
+/** Git's version, and whether it has `merge-tree --write-tree` (2.38+). */
+export async function gitVersion(
+  git: SimpleGit,
+): Promise<{ text: string; supportsMergeTree: boolean }> {
+  const { major, minor, patch } = await git.version();
+  return {
+    text: `${major}.${minor}.${patch}`,
+    supportsMergeTree: major > 2 || (major === 2 && minor >= 38),
+  };
+}
+
 /** Counts commits in a range like "HEAD..origin/main". Null if a ref is missing. */
 export async function countCommits(git: SimpleGit, range: string): Promise<number | null> {
   try {

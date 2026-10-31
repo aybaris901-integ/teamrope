@@ -17,6 +17,8 @@ import {
   explainStartTaskResult,
   explainSyncRefusal,
   explainSyncResult,
+  explainTeamStatus,
+  teamStatus,
   executeSync,
   planSync,
   planSave,
@@ -37,7 +39,8 @@ const USAGE = `Usage:
                                commit your work and upload it to your own branch
                                -m      commit message (default: made from the file names)
                                --yes   accept the defaults: risky files are left out
-  branchguard sync [--yes]     bring the latest main into your branch (only if it merges cleanly)`;
+  branchguard sync [--yes]     bring the latest main into your branch (only if it merges cleanly)
+  branchguard status [dir]     the whole team: who's where, and whose work would conflict`;
 
 async function runDiagnose(dirArg: string | undefined): Promise<void> {
   const dir = path.resolve(dirArg ?? ".");
@@ -174,11 +177,19 @@ async function runSync(flags: PromptFlags): Promise<void> {
   if (!result.ok) process.exitCode = 1;
 }
 
+async function runStatus(dirArg: string | undefined): Promise<void> {
+  const status = await teamStatus(path.resolve(dirArg ?? "."));
+  console.log(explainTeamStatus(status).join("\n"));
+}
+
 async function main(args: string[]): Promise<void> {
   const [command, ...rest] = args;
   switch (command) {
     case "diagnose":
       await runDiagnose(rest[0]);
+      break;
+    case "status":
+      await runStatus(rest[0]);
       break;
     case "start": {
       const { values, positionals } = parseArgs({

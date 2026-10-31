@@ -21,6 +21,8 @@ export {
   explainTrackedSecrets,
   explainSyncRefusal,
   explainSyncResult,
+  explainTeamStatus,
+  timeAgo,
   riskyFileQuestion,
   secretIgnoreQuestion,
   type Explanation,
@@ -67,3 +69,15 @@ export {
   type SyncResult,
   type SyncStep,
 } from "./sync.js";
+export {
+  ACTIVE_HOURS,
+  FAR_BEHIND_COMMITS,
+  STALE_HOURS,
+  teamStatus,
+  type BranchOverlap,
+  type MainConflict,
+  type RemoteBranch,
+  type TeamProblem,
+  type TeamStatus,
+  type TeamStatusOptions,
+} from "./team-status.js";

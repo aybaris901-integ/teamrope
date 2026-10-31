@@ -10,6 +10,7 @@ import type {
 } from "./start-task.js";
 import { willIgnore, type SavePlan, type SaveResult, type SaveStepData } from "./save.js";
 import type { SyncConflict, SyncPlan, SyncResult, SyncStepData } from "./sync.js";
+import type { RemoteBranch, TeamProblem, TeamStatus } from "./team-status.js";
 import type { RiskyFile, SecretReason } from "./risky-files.js";
 
 const MAX_LISTED_FILES = 5;
@@ -568,5 +569,112 @@ export function explainSyncResult(plan: SyncPlan, result: SyncResult): string[] 
   } else if (result.failedStep) {
     lines.push(`I stopped before this step: ${result.failedStep.description} Reason: ${reason}`, "Nothing was changed.");
   }
+  return lines;
+}
+
+// --- Team status -----------------------------------------------------------
+
+/** "just now", "25 min ago", "3 h ago", "2 days ago". */
+export function timeAgo(date: Date, now: Date): string {
+  const minutes = Math.floor((now.getTime() - date.getTime()) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"} ago`;
+}
+
+function explainTeamProblem(problem: TeamProblem, mainBranch: string): string {
+  switch (problem.kind) {
+    case "conflictWithMain": {
+      const { owner, branch, conflicts } = problem;
+      const files = listWords(conflicts.map((c) => c.path));
+      const authors = [...new Set(conflicts.flatMap((c) => c.mainAuthors))].filter((a) => a !== owner);
+      return authors.length > 0
+        ? `${owner}'s ${branch} would conflict with ${mainBranch} in ${files} (changed on ${mainBranch} by ${listWords(authors)}). ${owner} should agree with ${listWords(authors)} on one version, then Save and Sync.`
+        : `${owner}'s ${branch} would conflict with ${mainBranch} in ${files}. ${owner} should look at what changed on ${mainBranch}, then Save and Sync.`;
+    }
+    case "overlap": {
+      const { branches: [a, b], owners: [ownerA, ownerB], files } = problem.overlap;
+      return ownerA === ownerB
+        ? `${ownerA}'s ${a} and ${b} change the same part of ${listWords(files)}. ${ownerA} should settle on one version before either is merged into ${mainBranch}.`
+        : `${ownerA} (${a}) and ${ownerB} (${b}) changed the same part of ${listWords(files)}. They should agree on one version now, before either is merged into ${mainBranch}.`;
+    }
+    case "noRecentUpload":
+      return `${problem.owner} hasn't uploaded ${problem.branch} for ${problem.hours} h. Ask ${problem.owner} to Save, even if the work isn't finished.`;
+    case "farBehind":
+      return `${problem.owner}'s ${problem.branch} is ${problem.behind} commits behind ${mainBranch}. ${problem.owner} should Sync soon, while it's still easy.`;
+  }
+}
+
+/** Short status for one table row: the most urgent thing about the branch. */
+function branchStatusLabel(branch: RemoteBranch, status: TeamStatus): string {
+  const problems = status.problems.filter((p) =>
+    p.kind === "overlap" ? p.overlap.branches.includes(branch.branch) : p.branch === branch.branch,
+  );
+  const first = problems[0];
+  if (!first) return "ok";
+  switch (first.kind) {
+    case "conflictWithMain":
+      return `conflicts with ${status.mainBranch}`;
+    case "overlap": {
+      const others = problems
+        .filter((p): p is Extract<TeamProblem, { kind: "overlap" }> => p.kind === "overlap")
+        .map((p) => p.overlap.owners[p.overlap.branches[0] === branch.branch ? 1 : 0]);
+      return `overlaps ${listWords([...new Set(others)])}`;
+    }
+    case "noRecentUpload":
+      return `no upload for ${first.hours} h`;
+    case "farBehind":
+      return "far behind";
+  }
+}
+
+function formatTable(rows: string[][]): string[] {
+  const widths = rows[0]?.map((_, col) => Math.max(...rows.map((row) => (row[col] ?? "").length))) ?? [];
+  return rows.map((row) =>
+    row.map((cell, col) => cell.padEnd(widths[col] ?? 0)).join("  ").trimEnd(),
+  );
+}
+
+/** The whole Team status report, line by line, problems first. */
+export function explainTeamStatus(status: TeamStatus): string[] {
+  const lines: string[] = [];
+  if (status.remoteProblem) {
+    const [meaning] = explainRemoteProblem(status.remoteProblem);
+    lines.push(`I couldn't reach the team repo, so this is from the last time I could. ${meaning}`, "");
+  }
+
+  if (status.problems.length === 0) {
+    lines.push("No problems. Everyone's work combines cleanly.");
+  } else {
+    lines.push(`${plural(status.problems.length, "problem")}, most urgent first:`);
+    status.problems.forEach((problem, i) =>
+      lines.push(`  ${i + 1}. ${explainTeamProblem(problem, status.mainBranch)}`),
+    );
+  }
+  lines.push("");
+
+  if (status.branches.length === 0) {
+    lines.push("Nobody has uploaded a branch in the last day.");
+  } else {
+    const rows = [
+      ["who", "branch", "last upload", "ahead/behind", "status"],
+      ...status.branches.map((b) => [
+        b.owner,
+        b.branch,
+        timeAgo(b.lastUpload, status.now),
+        `+${b.ahead} / -${b.behind}`,
+        branchStatusLabel(b, status),
+      ]),
+    ];
+    lines.push(...formatTable(rows));
+  }
+  if (status.oldBranches.length > 0) {
+    lines.push(`and ${plural(status.oldBranches.length, "old branch")} (no upload for over a day)`);
+  }
+
+  lines.push("", "This only shows uploaded work. Ask everyone to Save often.");
   return lines;
 }

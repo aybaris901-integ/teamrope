@@ -3,7 +3,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { SimpleGit } from "simple-git";
-import { countCommits, openRepo, remoteProblemFromError } from "./git.js";
+import { countCommits, fetchOrigin, gitVersion, openRepo } from "./git.js";
 import type { RemoteProblem } from "./remote-problem.js";
 
 export type OperationInProgress = "merge" | "rebase" | "cherry-pick" | "revert";
@@ -57,7 +57,7 @@ export function pickNextAction(d: Omit<Diagnosis, "nextAction">): NextAction | n
 
 export async function diagnose(dir: string, mainBranch = "main"): Promise<Diagnosis> {
   const git = await openRepo(dir);
-  const version = await git.version();
+  const version = await gitVersion(git);
 
   // Fetch first so every count below uses the latest remote state.
   const remote = await fetchOrigin(git);
@@ -68,8 +68,8 @@ export async function diagnose(dir: string, mainBranch = "main"): Promise<Diagno
   const localMain = `refs/heads/${mainBranch}`;
 
   const facts: Omit<Diagnosis, "nextAction"> = {
-    gitVersion: `${version.major}.${version.minor}.${version.patch}`,
-    supportsMergeTree: version.major > 2 || (version.major === 2 && version.minor >= 38),
+    gitVersion: version.text,
+    supportsMergeTree: version.supportsMergeTree,
     currentBranch: status.detached ? null : status.current,
     onMain: !status.detached && status.current === mainBranch,
     detached: status.detached,
@@ -109,13 +109,4 @@ async function operationInProgress(
   return null;
 }
 
-async function fetchOrigin(
-  git: SimpleGit,
-): Promise<Pick<Diagnosis, "canReachRemote" | "remoteProblem">> {
-  try {
-    await git.raw(["fetch", "--quiet", "origin"]);
-    return { canReachRemote: true, remoteProblem: null };
-  } catch (error) {
-    return { canReachRemote: false, remoteProblem: remoteProblemFromError(error) };
-  }
-}
+
