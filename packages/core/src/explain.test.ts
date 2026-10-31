@@ -16,19 +16,65 @@ const base: Diagnosis = {
   unpushedCommitsOnMain: 0,
   canReachRemote: true,
   remoteProblem: null,
+  nextAction: null,
 };
+
+const BUTTON_ADVICE = /Start task|Start a task|Save will|Sync will/;
 
 describe("explainDiagnosis", () => {
   test("mid-rebase (detached HEAD) leads with the rebase and names no branch", () => {
-    const text = explainDiagnosis({
+    const { summary, next } = explainDiagnosis({
       ...base,
       currentBranch: null,
       detached: true,
       inProgress: "rebase",
-    }).join(" ");
+      nextAction: "finishOperation",
+    });
+    const text = summary.join(" ");
     expect(text).toMatch(/^You're in the middle of a rebase/);
     expect(text).toContain("I won't change anything until it's done.");
     expect(text).not.toContain("null");
     expect(text).not.toContain("detached HEAD");
+    expect(next).toBe("Next: finish or cancel the rebase (ask your captain if you're stuck)");
+  });
+
+  test("the summary never gives button advice; next is the only suggestion", () => {
+    const { summary, next } = explainDiagnosis({
+      ...base,
+      currentBranch: "main",
+      onMain: true,
+      dirtyFiles: ["src/app.js"],
+      behindMain: 2,
+      unpushedCommitsOnMain: 1,
+      aheadOfUpstream: null,
+      nextAction: "startTask",
+    });
+    expect(summary.join(" ")).not.toMatch(BUTTON_ADVICE);
+    expect(next).toBe("Next: Start task");
+  });
+
+  test("access advice only when fixing access is the next step", () => {
+    const remoteProblem = { kind: "network", detail: "Connection refused" } as const;
+    const fixAccess = explainDiagnosis({
+      ...base,
+      canReachRemote: false,
+      remoteProblem,
+      nextAction: "fixAccess",
+    });
+    expect(fixAccess.summary.join(" ")).toContain("Check your internet connection");
+    expect(fixAccess.next).toBe("Next: fix access to the team repo (see above)");
+
+    const midMerge = explainDiagnosis({
+      ...base,
+      inProgress: "merge",
+      canReachRemote: false,
+      remoteProblem,
+      nextAction: "finishOperation",
+    });
+    expect(midMerge.summary.join(" ")).not.toContain("Check your internet connection");
+  });
+
+  test("nothing to do", () => {
+    expect(explainDiagnosis(base).next).toBe("Nothing to do, keep coding.");
   });
 });

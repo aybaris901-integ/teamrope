@@ -8,8 +8,9 @@ const USAGE = "Usage: branchguard diagnose [dir]";
 
 async function runDiagnose(dirArg: string | undefined): Promise<void> {
   const dir = path.resolve(dirArg ?? ".");
-  const diagnosis = await diagnose(dir);
-  console.log(explainDiagnosis(diagnosis).join(" "));
+  const { summary, next } = explainDiagnosis(await diagnose(dir));
+  console.log(summary.join(" "));
+  console.log(next);
 }
 
 async function main(args: string[]): Promise<void> {

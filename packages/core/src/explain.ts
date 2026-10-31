@@ -75,35 +75,57 @@ export function explainRemoteProblem(problem: RemoteProblem): [string, string] {
   }
 }
 
-export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): string[] {
+export interface Explanation {
+  /** What's going on, as short sentences. No advice except how to fix access. */
+  summary: string[];
+  /** Exactly one suggestion: "Next: <button>" or "Nothing to do, keep coding." */
+  next: string;
+}
+
+function explainNextAction(d: Diagnosis): string {
+  switch (d.nextAction) {
+    case "finishOperation":
+      return `Next: finish or cancel the ${d.inProgress ?? "operation"} (ask your captain if you're stuck)`;
+    case "fixAccess":
+      return "Next: fix access to the team repo (see above)";
+    case "startTask":
+      return "Next: Start task";
+    case "save":
+      return "Next: Save";
+    case "sync":
+      return "Next: Sync";
+    case null:
+      return "Nothing to do, keep coding.";
+  }
+}
+
+export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation {
   const sentences: string[] = [];
 
   if (d.inProgress) {
     sentences.push(
       `You're in the middle of ${OPERATION_DESCRIPTIONS[d.inProgress]}, and Git is waiting for it to be finished or cancelled.`,
-      "I won't change anything until it's done. Ask your captain for help if you're stuck.",
+      "I won't change anything until it's done.",
     );
   }
 
   // Before the rest, because it's all based on possibly old remote data.
   if (d.remoteProblem) {
-    sentences.push(
-      "I couldn't reach the team repo, so the rest may be out of date.",
-      ...explainRemoteProblem(d.remoteProblem),
-    );
+    const [meaning, whatToDo] = explainRemoteProblem(d.remoteProblem);
+    sentences.push("I couldn't reach the team repo, so the rest may be out of date.", meaning);
+    // Only when fixing access is the next step, so there's one suggestion.
+    if (d.nextAction === "fixAccess") sentences.push(whatToDo);
   }
 
   if (d.detached) {
     // A rebase detaches HEAD on purpose; the in-progress sentence covers it.
     if (!d.inProgress) {
       sentences.push(
-        `You're not on any branch right now (Git calls this "detached HEAD"), so new work could get lost. Ask your captain for help before saving.`,
+        `You're not on any branch right now (Git calls this "detached HEAD"), so new work could get lost.`,
       );
     }
   } else if (d.onMain) {
-    sentences.push(
-      `You're on ${mainBranch}, the branch the whole team shares. Start a task to get your own branch before changing things.`,
-    );
+    sentences.push(`You're on ${mainBranch}, the branch the whole team shares.`);
   } else {
     sentences.push(`You're on your own branch ${d.currentBranch}.`);
   }
@@ -116,10 +138,10 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): string[] {
 
   if (!d.onMain && !d.detached) {
     if (d.aheadOfUpstream === null) {
-      sentences.push("This branch is only on your computer so far. Save will upload it.");
+      sentences.push("This branch is only on your computer so far.");
     } else if (d.aheadOfUpstream > 0) {
       sentences.push(
-        `You have ${plural(d.aheadOfUpstream, "commit")} that only ${d.aheadOfUpstream === 1 ? "exists" : "exist"} on your computer. Save will upload ${them(d.aheadOfUpstream)}.`,
+        `You have ${plural(d.aheadOfUpstream, "commit")} that only ${d.aheadOfUpstream === 1 ? "exists" : "exist"} on your computer.`,
       );
     }
     if (d.behindUpstream) {
@@ -133,7 +155,7 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): string[] {
     sentences.push(`I couldn't find the team's ${mainBranch} branch to compare with.`);
   } else if (d.behindMain > 0) {
     sentences.push(
-      `${capitalize(mainBranch)} has ${plural(d.behindMain, "new commit")} you don't have yet. Sync will bring ${them(d.behindMain)} in.`,
+      `${capitalize(mainBranch)} has ${plural(d.behindMain, "new commit")} you don't have yet.`,
     );
   } else if (!d.onMain) {
     sentences.push(`You're up to date with ${mainBranch}.`);
@@ -141,7 +163,7 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): string[] {
 
   if (d.unpushedCommitsOnMain) {
     sentences.push(
-      `Your ${mainBranch} has ${plural(d.unpushedCommitsOnMain, "commit")} that ${d.unpushedCommitsOnMain === 1 ? "was" : "were"} never uploaded, so only you have ${them(d.unpushedCommitsOnMain)}. Save will move ${them(d.unpushedCommitsOnMain)} to your own branch.`,
+      `Your ${mainBranch} has ${plural(d.unpushedCommitsOnMain, "commit")} that ${d.unpushedCommitsOnMain === 1 ? "was" : "were"} never uploaded, so only you have ${them(d.unpushedCommitsOnMain)}.`,
     );
   }
 
@@ -151,5 +173,5 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): string[] {
     );
   }
 
-  return sentences;
+  return { summary: sentences, next: explainNextAction(d) };
 }

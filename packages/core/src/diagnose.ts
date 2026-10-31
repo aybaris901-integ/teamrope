@@ -8,6 +8,8 @@ import { classifyRemoteProblem, type RemoteProblem } from "./remote-problem.js";
 
 export type OperationInProgress = "merge" | "rebase" | "cherry-pick" | "revert";
 
+export type NextAction = "startTask" | "save" | "sync" | "finishOperation" | "fixAccess";
+
 export interface Diagnosis {
   gitVersion: string;
   /** Git >= 2.38 can dry-run merges with `git merge-tree --write-tree`. */
@@ -30,6 +32,18 @@ export interface Diagnosis {
   canReachRemote: boolean;
   /** Why the fetch failed, else null. */
   remoteProblem: RemoteProblem | null;
+  /** The one thing the user should do next. Null if nothing is needed. */
+  nextAction: NextAction | null;
+}
+
+/** Picks exactly one next action, most urgent first. */
+export function pickNextAction(d: Omit<Diagnosis, "nextAction">): NextAction | null {
+  if (d.inProgress) return "finishOperation";
+  if (!d.canReachRemote) return "fixAccess";
+  if (d.onMain) return "startTask";
+  if (d.dirtyFiles.length > 0) return "save";
+  if (d.behindMain) return "sync";
+  return null;
 }
 
 export async function diagnose(dir: string, mainBranch = "main"): Promise<Diagnosis> {
@@ -44,7 +58,7 @@ export async function diagnose(dir: string, mainBranch = "main"): Promise<Diagno
   const originMain = `refs/remotes/origin/${mainBranch}`;
   const localMain = `refs/heads/${mainBranch}`;
 
-  return {
+  const facts: Omit<Diagnosis, "nextAction"> = {
     gitVersion: `${version.major}.${version.minor}.${version.patch}`,
     supportsMergeTree: version.major > 2 || (version.major === 2 && version.minor >= 38),
     currentBranch: status.detached ? null : status.current,
@@ -58,6 +72,7 @@ export async function diagnose(dir: string, mainBranch = "main"): Promise<Diagno
     unpushedCommitsOnMain: await countCommits(git, `${originMain}..${localMain}`),
     ...remote,
   };
+  return { ...facts, nextAction: pickNextAction(facts) };
 }
 
 // Files Git keeps in .git while an operation is unfinished. Rebase comes
