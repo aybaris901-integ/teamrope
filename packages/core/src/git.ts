@@ -31,16 +31,38 @@ const INTERACTIVE_ENV_VARS = [
 ];
 
 /**
- * The user's environment, made non-interactive: Git must fail fast instead of
- * waiting for a password nobody will type.
+ * SSH that gives up on its own: never asks for a passphrase or host
+ * confirmation, and drops dead connections within ~10 seconds.
  */
-export function cleanGitEnv(source: NodeJS.ProcessEnv = process.env): Record<string, string> {
+export const DEFAULT_SSH_COMMAND =
+  "ssh -o BatchMode=yes -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2";
+
+/**
+ * The user's environment, made non-interactive: Git must fail fast instead of
+ * waiting for a password nobody will type. Uses DEFAULT_SSH_COMMAND unless
+ * the user set their own (GIT_SSH_COMMAND, GIT_SSH or core.sshCommand).
+ */
+export function cleanGitEnv(
+  source: NodeJS.ProcessEnv = process.env,
+  sshCommandInConfig = false,
+): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(source)) {
     if (value !== undefined && !INTERACTIVE_ENV_VARS.includes(key)) env[key] = value;
   }
   env.GIT_TERMINAL_PROMPT = "0";
+  if (!env.GIT_SSH_COMMAND && !env.GIT_SSH && !sshCommandInConfig) {
+    env.GIT_SSH_COMMAND = DEFAULT_SSH_COMMAND;
+  }
   return env;
+}
+
+async function hasSshCommandConfig(git: SimpleGit): Promise<boolean> {
+  try {
+    return (await git.raw(["config", "--get", "core.sshCommand"])).trim() !== "";
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -51,7 +73,15 @@ export async function openRepo(dir: string): Promise<SimpleGit> {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
     throw new NotAGitRepoError(dir);
   }
-  const git = simpleGit({ baseDir: dir, timeout: { block: GIT_TIMEOUT_MS } }).env(cleanGitEnv());
+  const git = simpleGit({
+    baseDir: dir,
+    // Backstop for anything that still hangs.
+    timeout: { block: GIT_TIMEOUT_MS },
+    // All of simple-git's safety checks stay on except this one: it rejects
+    // any GIT_SSH_COMMAND, including our own DEFAULT_SSH_COMMAND and the
+    // user's own setting.
+    unsafe: { allowUnsafeSshCommand: true },
+  }).env(cleanGitEnv());
 
   let insideWorkTree = false;
   try {
@@ -60,6 +90,10 @@ export async function openRepo(dir: string): Promise<SimpleGit> {
     // "fatal: not a git repository" - handled below.
   }
   if (!insideWorkTree) throw new NotAGitRepoError(dir);
+
+  // GIT_SSH_COMMAND beats core.sshCommand, so drop our default if the repo
+  // or the user's config already sets one.
+  if (await hasSshCommandConfig(git)) git.env(cleanGitEnv(process.env, true));
   return git;
 }
 
