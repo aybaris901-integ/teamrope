@@ -1,8 +1,21 @@
 // Round avatars with a teammate's initial, in a stable color per name.
 // Written once as SVG files in the extension's storage, used as tree icons.
+// Colors are neutral (blues, purples, greys): never red, yellow or green,
+// so an avatar can't be mistaken for a status.
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import * as vscode from "vscode";
+
+const PALETTE = [
+  "#4A6FA5", // steel blue
+  "#3E6E8E", // deep sky
+  "#5C5FB0", // indigo
+  "#6B5B95", // purple
+  "#7A5BA6", // violet
+  "#4F5D75", // slate
+  "#5F6670", // graphite
+  "#2F5D8A", // navy
+];
 
 function hash(text: string): number {
   let h = 0;
@@ -28,14 +41,15 @@ export class Avatars {
   /** File URI of the avatar for `name` (created on first use). */
   uri(name: string): vscode.Uri {
     const text = initials(name);
-    const hue = hash(name.toLowerCase()) % 360;
-    const file = path.join(this.dir, `${hue}-${encodeURIComponent(text)}.svg`);
+    const index = hash(name.toLowerCase()) % PALETTE.length;
+    const color = PALETTE[index] ?? PALETTE[0];
+    const file = path.join(this.dir, `p${index}-${encodeURIComponent(text)}.svg`);
     if (!existsSync(file)) {
       const fontSize = text.length > 1 ? 6.5 : 8.5;
       writeFileSync(
         file,
         `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">` +
-          `<circle cx="8" cy="8" r="8" fill="hsl(${hue}, 55%, 42%)"/>` +
+          `<circle cx="8" cy="8" r="8" fill="${color}"/>` +
           `<text x="8" y="8" dy="0.35em" text-anchor="middle" font-family="sans-serif" font-size="${fontSize}" font-weight="600" fill="#fff">${text}</text>` +
           `</svg>`,
       );
