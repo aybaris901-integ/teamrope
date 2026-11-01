@@ -1,0 +1,94 @@
+/* YOU panel. Colors and fonts only from VS Code's theme variables. */
+body {
+  padding: 8px 12px 12px;
+  color: var(--vscode-foreground);
+  background: transparent;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  line-height: 1.45;
+}
+
+.headline {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 4px 0 12px;
+  font-size: calc(var(--vscode-font-size) + 1px);
+  font-weight: 600;
+}
+.headline .codicon { margin-top: 2px; flex: none; }
+.headline.error .codicon { color: var(--vscode-errorForeground); }
+.headline.warning .codicon { color: var(--vscode-editorWarning-foreground); }
+.headline.info .codicon { color: var(--vscode-editorInfo-foreground); }
+.headline.ok .codicon { color: var(--vscode-testing-iconPassed); }
+
+.button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+.button:focus-visible, .link:focus-visible, .problem-text:focus-visible, summary:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+.primary {
+  padding: 6px 12px;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+.primary:hover { background: var(--vscode-button-hoverBackground); }
+.block { width: 100%; margin-bottom: 10px; }
+
+.secondary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.small {
+  padding: 2px 8px;
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+  font-size: calc(var(--vscode-font-size) - 1px);
+}
+.small:hover { background: var(--vscode-button-secondaryHoverBackground); }
+
+.problems { list-style: none; margin: 0 0 12px; padding: 0; }
+.problem {
+  padding: 6px 0;
+  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+}
+.problem-text {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.problem.mainConflict .codicon { color: var(--vscode-errorForeground); }
+.problem.overlapWithMe .codicon { color: var(--vscode-editorWarning-foreground); }
+.problem-actions { display: flex; gap: 12px; margin: 2px 0 0 22px; }
+
+.link {
+  padding: 0;
+  border: 0;
+  color: var(--vscode-textLink-foreground);
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.link:hover { color: var(--vscode-textLink-activeForeground); text-decoration: underline; }
+
+.details summary { cursor: pointer; color: var(--vscode-descriptionForeground); }
+.details ul { margin: 6px 0 0; padding-left: 18px; color: var(--vscode-descriptionForeground); }
+.details li { margin-bottom: 4px; }
+
+.welcome { margin: 4px 0 12px; }
+.muted { color: var(--vscode-descriptionForeground); }

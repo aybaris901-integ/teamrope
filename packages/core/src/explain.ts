@@ -866,3 +866,19 @@ export function memberStatus(
   const latest = branches.reduce<Date | null>((max, b) => (!max || b.lastSave > max ? b.lastSave : max), null);
   return latest ? `last shared ${shortDuration(now.getTime() - latest.getTime())} ago` : "nothing shared yet";
 }
+
+export type StatusBarKind = "conflict" | "toShare" | "sync" | "attention" | "inSync";
+
+/** Short status bar text: "Conflict in src/config.js", "1 to share", "Next: Sync", "In sync". */
+export function statusBarSummary(
+  d: Diagnosis,
+  conflicts: MainConflictPreview[],
+): { kind: StatusBarKind; text: string } {
+  const conflict = conflicts[0];
+  if (conflict) return { kind: "conflict", text: `Conflict in ${conflict.path}` };
+  if (d.dirtyFiles.length > 0) return { kind: "toShare", text: `${d.dirtyFiles.length} to share` };
+  if (d.nextAction === "sync") return { kind: "sync", text: "Next: Sync" };
+  const short = shortNextAction(d);
+  if (short) return { kind: "attention", text: `Next: ${short}` };
+  return { kind: "inSync", text: "In sync" };
+}

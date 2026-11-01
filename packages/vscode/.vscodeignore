@@ -1,5 +1,5 @@
 **
-!dist/extension.js
+!dist/**
 !media/**
 !package.json
 !README.md

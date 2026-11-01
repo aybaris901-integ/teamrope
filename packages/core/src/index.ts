@@ -30,6 +30,8 @@ export {
   overlapMessage,
   problemMessage,
   shortDuration,
+  statusBarSummary,
+  type StatusBarKind,
   type Severity,
   explainOldBranches,
   explainTeamProblem,
@@ -83,6 +85,7 @@ export {
 export {
   findRiskyFiles,
   gitignoreEntry,
+  isCoveredBy,
   type ChangedFile,
   type RiskyFile,
   type SecretReason,

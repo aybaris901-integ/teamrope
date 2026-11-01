@@ -1,9 +1,12 @@
-// The four buttons, each as plan -> confirm -> execute. All Git work is core's.
+// The buttons, each as plan -> confirm -> execute, plus Compare and Copy message.
+// All Git work is core's.
 import {
+  applySaveChoices,
   executeSave,
   executeStartTask,
   executeSync,
   explainDiagnosis,
+  explainMyProblem,
   explainSavePlan,
   explainSaveRefusal,
   explainSaveResult,
@@ -17,21 +20,25 @@ import {
   planStartTask,
   planSync,
   slugify,
+  type MyProblem,
   type SavePlan,
 } from "@branchguard/core";
 import * as vscode from "vscode";
+import { compareTargetFor, copyTextFor, refUri, type CompareSide } from "./problem-actions.js";
 import type { RepoContext } from "./repo.js";
 import type { BranchguardState } from "./state.js";
 import {
-  askAboutRiskyFiles,
   askMemberName,
+  askShareMessage,
   askTaskName,
+  chooseFilesToShare,
   confirmPlan,
   showExplanation,
   showResult,
   withProgress,
   type Output,
 } from "./ui.js";
+import type { Item } from "./views.js";
 
 export class Actions {
   constructor(
@@ -74,41 +81,49 @@ export class Actions {
     await showResult(this.output, "Start task", explainStartTaskResult(plan, result), result.ok);
   }
 
+  /** Share changes: pick files (1/2), write the message (2/2), then commit and upload. */
   async save(): Promise<void> {
     const ctx = this.requireRepo();
     if (!ctx) return;
     const options = { remoteOps: ctx.remoteOps };
-    let plan: SavePlan | undefined = await withProgress("Checking your work…", () =>
+    let plan: SavePlan | undefined = await withProgress("Checking your changes…", () =>
       planSave(ctx.dir, options),
     );
     if (!plan.canRun) {
       const kind = plan.nothingToSave ? "info" : "warning";
-      return showExplanation(this.output, "Save", explainSaveRefusal(plan), kind);
+      return showExplanation(this.output, "Share changes", explainSaveRefusal(plan), kind);
     }
     if (plan.startTask?.nameIsNew) {
       const memberName = await askMemberName(plan.startTask.memberName);
       if (memberName === undefined) return;
       if (slugify(memberName) !== plan.startTask.memberName) {
-        plan = await withProgress("Checking your work…", () =>
+        plan = await withProgress("Checking your changes…", () =>
           planSave(ctx.dir, { ...options, memberName }),
         );
       }
     }
-    plan = await askAboutRiskyFiles(plan);
+
+    plan = await chooseFilesToShare(plan);
     if (!plan) return;
+    const commit = plan.steps.find((step) => step.kind === "commit");
+    if (commit?.kind === "commit") {
+      const message = await askShareMessage(commit.message);
+      if (message === undefined) return;
+      plan = applySaveChoices(plan, {}, {}, { message });
+    }
     const notes = explainSavePlan(plan);
     if (plan.steps.length === 0) {
-      return showExplanation(this.output, "Save", [...notes, "Nothing left to save."], "info");
+      return showExplanation(this.output, "Share changes", [...notes, "Nothing left to share."], "info");
     }
 
-    // An everyday save to a branch already on the team repo runs without a dialog.
+    // An everyday share to a branch already on the team repo runs without a dialog.
     const steps = plan.steps.map((step) => step.description);
-    if (!isPlainSave(plan) && !(await confirmPlan("Save: here's what I'll do", steps, notes))) return;
+    if (!isPlainSave(plan) && !(await confirmPlan("Share changes: here's what I'll do", steps, notes))) return;
 
     const ready = plan;
-    const result = await withProgress("Saving…", () => executeSave(ready, options));
+    const result = await withProgress("Sharing your changes…", () => executeSave(ready, options));
     await this.state.refresh("force");
-    await showResult(this.output, "Save", [...notes, ...explainSaveResult(ready, result)], result.ok);
+    await showResult(this.output, "Share changes", [...notes, ...explainSaveResult(ready, result)], result.ok);
   }
 
   async sync(): Promise<void> {
@@ -150,9 +165,39 @@ export class Actions {
     else if (this.state.teamError) void vscode.window.showWarningMessage(this.state.teamError);
   }
 
-  async showProblem(line: string): Promise<void> {
-    this.output.section("Team problem", [line]);
-    await vscode.window.showInformationMessage("Team problem", { modal: true, detail: line });
+  async showProblem(problem: MyProblem): Promise<void> {
+    const line = explainMyProblem(problem, new Date());
+    this.output.section("Problem", [line]);
+    const buttons = compareTargetFor(problem) ? ["Compare", "Copy message"] : ["Copy message"];
+    const answer = await vscode.window.showInformationMessage(line, { modal: true }, ...buttons);
+    if (answer === "Compare") await this.compare(problem);
+    if (answer === "Copy message") await this.copyMessage(problem);
+  }
+
+  /** Accepts a problem, or a tree item carrying one (inline actions pass the item). */
+  async copyMessage(target: MyProblem | Item | undefined): Promise<void> {
+    const problem = problemOf(target);
+    if (!problem) return;
+    await vscode.env.clipboard.writeText(copyTextFor(problem, this.state.diagnosis?.currentBranch ?? "my branch"));
+    void vscode.window.showInformationMessage("Copied");
+  }
+
+  async compare(target: MyProblem | Item | undefined): Promise<void> {
+    const problem = problemOf(target);
+    const dir = this.state.dir;
+    const compare = problem && compareTargetFor(problem);
+    if (!compare || !dir) return;
+    const uriFor = (side: CompareSide): vscode.Uri =>
+      "workingTree" in side
+        ? vscode.Uri.joinPath(vscode.Uri.file(dir), compare.path)
+        : refUri(dir, side.ref, compare.path, side.label);
+    const label = (side: CompareSide): string => ("workingTree" in side ? "yours" : side.label);
+    await vscode.commands.executeCommand(
+      "vscode.diff",
+      uriFor(compare.left),
+      uriFor(compare.right),
+      `${compare.path}: ${label(compare.left)} ↔ ${label(compare.right)}`,
+    );
   }
 
   /** Runs whatever diagnose suggests; for steps that need a person, explains them. */
@@ -175,4 +220,10 @@ export class Actions {
       }
     }
   }
+}
+
+/** The problem a command was called with: directly, or on a tree item. */
+function problemOf(target: MyProblem | Item | undefined): MyProblem | undefined {
+  if (!target) return undefined;
+  return target instanceof vscode.TreeItem ? (target as Item).problem : (target as MyProblem);
 }

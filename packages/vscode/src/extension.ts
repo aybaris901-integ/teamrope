@@ -1,12 +1,15 @@
 // branchguard for VS Code: a thin UI over @branchguard/core.
-import { configureGit } from "@branchguard/core";
+import { configureGit, fileAtRef } from "@branchguard/core";
 import * as vscode from "vscode";
 import { Actions } from "./actions.js";
+import { Avatars } from "./avatars.js";
 import { getGitApi } from "./git-api.js";
 import { BranchguardState } from "./state.js";
 import { createStatusBar } from "./status-bar.js";
+import { GIT_SCHEME } from "./problem-actions.js";
 import { errorMessage, Output } from "./ui.js";
-import { ActionsView, TeamView, YouView } from "./views.js";
+import { ActivityView, TeamView } from "./views.js";
+import { YouView } from "./you-view.js";
 
 const SAVE_DEBOUNCE_MS = 1500;
 
@@ -22,10 +25,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const state = new BranchguardState(gitApi, (line) => output.log(line));
   const actions = new Actions(state, output);
 
+  const avatars = new Avatars(context.globalStorageUri);
+  const you = new YouView(context.extensionUri, state, (problem, action) => {
+    const id = { compare: "branchguard.compare", copy: "branchguard.copyMessage", details: "branchguard.showProblem" }[action];
+    void vscode.commands.executeCommand(id, problem);
+  });
   context.subscriptions.push(
-    vscode.window.registerTreeDataProvider("branchguard.you", new YouView(state)),
-    vscode.window.registerTreeDataProvider("branchguard.actions", new ActionsView(state)),
-    vscode.window.registerTreeDataProvider("branchguard.team", new TeamView(state)),
+    vscode.window.registerWebviewViewProvider("branchguard.you", you),
+    vscode.window.registerTreeDataProvider("branchguard.team", new TeamView(state, avatars)),
+    vscode.window.registerTreeDataProvider("branchguard.activity", new ActivityView(state, avatars)),
+    // Read-only "file at a ref" documents for Compare.
+    vscode.workspace.registerTextDocumentContentProvider(GIT_SCHEME, {
+      async provideTextDocumentContent(uri) {
+        const query = new URLSearchParams(uri.query);
+        const content = await fileAtRef(query.get("dir") ?? "", query.get("ref") ?? "", query.get("file") ?? "");
+        return content ?? "";
+      },
+    }),
     createStatusBar(state),
   );
 
@@ -48,7 +64,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   command("branchguard.sync", () => actions.sync());
   command("branchguard.teamStatus", () => actions.teamStatus());
   command("branchguard.runNext", () => actions.runNext());
-  command("branchguard.showProblem", (line: string) => actions.showProblem(line));
+  command("branchguard.showProblem", (problem: never) => actions.showProblem(problem));
+  command("branchguard.copyMessage", (target: never) => actions.copyMessage(target));
+  command("branchguard.compare", (target: never) => actions.compare(target));
   command("branchguard.refresh", () => state.refresh("force"));
 
   // Saving a file: refresh without the network, debounced.

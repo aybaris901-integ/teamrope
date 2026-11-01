@@ -1,9 +1,10 @@
 // Dialogs and messages. Prompts only: every decision is made by core.
 import {
   applySaveChoices,
+  isCoveredBy,
   riskyFileReason,
-  secretIgnoreQuestion,
   slugify,
+  type RiskyFile,
   type SavePlan,
 } from "@branchguard/core";
 import * as vscode from "vscode";
@@ -58,41 +59,45 @@ export async function askTaskName(): Promise<string | undefined> {
 }
 
 /**
- * Risky files: checked = left out (core's safe default), then which left-out
- * secrets go into .gitignore. Undefined if cancelled.
+ * Share changes (1/2): every changed file, ordinary ones checked; risky ones
+ * (secrets, generated, large) unchecked with a warning and the reason.
+ * Returns the plan with the choices applied, or undefined if cancelled.
  */
-export async function askAboutRiskyFiles(plan: SavePlan): Promise<SavePlan | undefined> {
-  if (plan.risky.length === 0) return plan;
-  const picks = await vscode.window.showQuickPick(
-    plan.risky.map((risky) => ({ label: risky.path, detail: riskyFileReason(risky), picked: true, risky })),
-    {
-      title: "branchguard: Save",
-      placeHolder: "Checked files are left out of the save. Uncheck a file to include it anyway.",
-      canPickMany: true,
-      ignoreFocusOut: true,
-    },
-  );
-  if (!picks) return undefined;
+export async function chooseFilesToShare(plan: SavePlan): Promise<SavePlan | undefined> {
+  type Pick = vscode.QuickPickItem & { risky?: RiskyFile; file?: string };
+  const riskyItems: Pick[] = plan.risky.map((risky) => ({
+    label: `$(warning) ${risky.path}`,
+    description: riskyFileReason(risky),
+    picked: false,
+    risky,
+  }));
+  const fileItems: Pick[] = plan.files
+    .filter((file) => !plan.risky.some((risky) => isCoveredBy(file.path, risky)))
+    .map((file) => ({ label: file.path, description: file.untracked ? "new" : file.deleted ? "deleted" : undefined, picked: true, file: file.path }));
+  if (riskyItems.length + fileItems.length === 0) return plan; // nothing to pick: upload only
 
-  const leftOut = new Set(picks.map((pick) => pick.risky.path));
-  const include = Object.fromEntries(plan.risky.map((r) => [r.path, !leftOut.has(r.path)]));
-  const ignorable = plan.ignorableSecrets.filter((file) => leftOut.has(file));
-  const ignore: Record<string, boolean> = {};
-  if (ignorable.length > 0) {
-    const chosen = await vscode.window.showQuickPick(
-      ignorable.map((file) => ({ label: file, detail: secretIgnoreQuestion(file).question, picked: true })),
-      {
-        title: "branchguard: Save",
-        placeHolder: "Add the checked files to .gitignore so Git never asks again?",
-        canPickMany: true,
-        ignoreFocusOut: true,
-      },
-    );
-    if (!chosen) return undefined;
-    const ignored = new Set(chosen.map((pick) => pick.label));
-    for (const file of ignorable) ignore[file] = ignored.has(file);
-  }
-  return applySaveChoices(plan, include, ignore);
+  const picks = await vscode.window.showQuickPick([...fileItems, ...riskyItems], {
+    title: "Share changes (1/2)",
+    placeHolder: "Choose the files to share. Unchecked files stay on your computer.",
+    canPickMany: true,
+    ignoreFocusOut: true,
+  });
+  if (!picks) return undefined;
+  const picked = new Set(picks);
+  const include = Object.fromEntries(riskyItems.map((item) => [item.risky?.path ?? "", picked.has(item)]));
+  const excludedFiles = fileItems.filter((item) => !picked.has(item)).map((item) => item.file ?? "");
+  return applySaveChoices(plan, include, {}, { excludedFiles });
+}
+
+/** Share changes (2/2): the commit message, prefilled. Undefined if cancelled. */
+export async function askShareMessage(suggestion: string): Promise<string | undefined> {
+  return vscode.window.showInputBox({
+    title: "Share changes (2/2)",
+    prompt: "Describe your changes in a few words",
+    value: suggestion,
+    ignoreFocusOut: true,
+    validateInput: (value) => (value.trim() === "" ? "Write a few words about your changes." : undefined),
+  });
 }
 
 /** Runs `task` behind a progress notification. */

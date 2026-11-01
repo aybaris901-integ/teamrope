@@ -1,12 +1,24 @@
-// Cached diagnose + Team status for the current folder, refreshed on demand.
-// Fetches (network) at most every FETCH_INTERVAL_MS unless forced.
+// Cached diagnose, Team status, overlaps and the main-conflict preview for the
+// current folder. Fetches (network) at most every FETCH_INTERVAL_MS unless forced;
+// everything else is local and runs on every refresh.
 import {
   diagnose,
+  notSharedSince,
   NotAGitRepoError,
+  overlapsWithMe,
+  predictMainConflicts,
+  problemsForMe,
+  readMemberName,
+  recentActivity,
   teamStatus,
+  type ActivityEntry,
   type Diagnosis,
+  type MainConflictPreview,
+  type MyProblem,
+  type OverlapWithMe,
   type RemoteState,
   type TeamStatus,
+  type TheirSideCache,
 } from "@branchguard/core";
 import * as vscode from "vscode";
 import type { GitApi } from "./git-api.js";
@@ -24,14 +36,23 @@ export class BranchguardState {
   dir: string | undefined;
   diagnosis: Diagnosis | undefined;
   team: TeamStatus | undefined;
+  overlaps: OverlapWithMe[] = [];
+  mainConflicts: MainConflictPreview[] = [];
+  notSharedSince: Date | null = null;
+  activity: ActivityEntry[] = [];
+  /** My conflict with main, my overlaps, then the team's problems, each once. */
+  problems: MyProblem[] = [];
   /** Plain message when diagnose failed (other than "not a repo"). */
   error: string | undefined;
   /** Plain message when Team status failed, e.g. no main on the team repo. */
   teamError: string | undefined;
   noRepo = false;
+  /** My name as a branch prefix (saved, or suggested from user.name). */
+  me: string | undefined;
 
   private readonly lastFetch = new Map<string, number>();
   private readonly knownRemote = new Map<string, RemoteState>();
+  private readonly theirSides = new Map<string, TheirSideCache>();
   private queue: Promise<void> = Promise.resolve();
 
   constructor(
@@ -66,6 +87,7 @@ export class BranchguardState {
         knownRemote: this.knownRemote.get(ctx.dir),
       });
       if (!fetch && !this.team) await this.refreshTeam(ctx, false);
+      await this.refreshLocal(ctx.dir);
       this.error = undefined;
       this.setNoRepo(false);
     } catch (error) {
@@ -77,6 +99,27 @@ export class BranchguardState {
       this.log(`Refresh failed: ${this.error}`);
     }
     this.changed.fire();
+  }
+
+  /** Overlaps, main-conflict preview, not-shared age and activity: no network. */
+  private async refreshLocal(dir: string): Promise<void> {
+    let cache = this.theirSides.get(dir);
+    if (!cache) {
+      cache = new Map();
+      this.theirSides.set(dir, cache);
+    }
+    this.overlaps = await overlapsWithMe(dir, { cache });
+    this.mainConflicts = await predictMainConflicts(dir);
+    this.notSharedSince = await notSharedSince(dir);
+    this.activity = await recentActivity(dir, { limit: 5 });
+    const { saved, suggestion } = await readMemberName(dir);
+    this.me = saved ?? suggestion;
+    this.problems = problemsForMe(
+      this.team,
+      this.overlaps,
+      this.mainConflicts,
+      this.diagnosis?.currentBranch ?? null,
+    );
   }
 
   private async refreshTeam(ctx: RepoContext, fetch: boolean): Promise<void> {
@@ -104,6 +147,11 @@ export class BranchguardState {
   private clear(noRepo: boolean): void {
     this.diagnosis = undefined;
     this.team = undefined;
+    this.overlaps = [];
+    this.mainConflicts = [];
+    this.notSharedSince = null;
+    this.activity = [];
+    this.problems = [];
     this.error = undefined;
     this.teamError = undefined;
     this.setNoRepo(noRepo);

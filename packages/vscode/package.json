@@ -31,42 +31,128 @@
     },
     "views": {
       "branchguard": [
-        { "id": "branchguard.you", "name": "You" },
-        { "id": "branchguard.actions", "name": "Actions" },
-        { "id": "branchguard.team", "name": "Team" }
+        {
+          "id": "branchguard.you",
+          "name": "You",
+          "type": "webview"
+        },
+        {
+          "id": "branchguard.team",
+          "name": "Team"
+        },
+        {
+          "id": "branchguard.activity",
+          "name": "Activity"
+        }
       ]
     },
-    "viewsWelcome": [
+    "commands": [
       {
-        "view": "branchguard.you",
-        "contents": "Open your team's repo folder to get started.\n[Open Folder](command:vscode.openFolder)",
-        "when": "workbenchState == empty"
+        "command": "branchguard.startTask",
+        "title": "Start task",
+        "category": "branchguard",
+        "icon": "$(add)"
       },
       {
-        "view": "branchguard.you",
-        "contents": "This folder isn't a Git repo yet. Open your team's repo folder, or clone it.\n[Clone Repository](command:git.clone)\n[Open Folder](command:vscode.openFolder)",
-        "when": "workbenchState != empty && branchguard.noRepo"
+        "command": "branchguard.save",
+        "title": "Share changes",
+        "category": "branchguard",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "branchguard.sync",
+        "title": "Sync",
+        "category": "branchguard",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "branchguard.teamStatus",
+        "title": "Team status",
+        "category": "branchguard",
+        "icon": "$(organization)"
+      },
+      {
+        "command": "branchguard.refresh",
+        "title": "Refresh",
+        "category": "branchguard",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "branchguard.runNext",
+        "title": "Do the next step",
+        "category": "branchguard"
+      },
+      {
+        "command": "branchguard.showProblem",
+        "title": "Show details",
+        "category": "branchguard"
+      },
+      {
+        "command": "branchguard.copyMessage",
+        "title": "Copy message",
+        "category": "branchguard",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "branchguard.compare",
+        "title": "Compare",
+        "category": "branchguard",
+        "icon": "$(diff)"
       }
-    ],
-    "commands": [
-      { "command": "branchguard.startTask", "title": "Start task", "category": "branchguard", "icon": "$(add)" },
-      { "command": "branchguard.save", "title": "Save", "category": "branchguard", "icon": "$(cloud-upload)" },
-      { "command": "branchguard.sync", "title": "Sync", "category": "branchguard", "icon": "$(sync)" },
-      { "command": "branchguard.teamStatus", "title": "Team status", "category": "branchguard", "icon": "$(organization)" },
-      { "command": "branchguard.refresh", "title": "Refresh", "category": "branchguard", "icon": "$(refresh)" },
-      { "command": "branchguard.runNext", "title": "Do the next step", "category": "branchguard" },
-      { "command": "branchguard.showProblem", "title": "Show problem", "category": "branchguard" }
     ],
     "menus": {
       "view/title": [
         {
           "command": "branchguard.refresh",
           "when": "view == branchguard.you || view == branchguard.team",
-          "group": "navigation"
+          "group": "navigation@1"
+        },
+        {
+          "command": "branchguard.sync",
+          "when": "view == branchguard.you || view == branchguard.team",
+          "group": "navigation@2"
+        },
+        {
+          "command": "branchguard.startTask",
+          "when": "view == branchguard.you || view == branchguard.team",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "branchguard.save",
+          "when": "view == branchguard.you || view == branchguard.team",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "branchguard.teamStatus",
+          "when": "view == branchguard.you || view == branchguard.team",
+          "group": "1_actions@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "branchguard.compare",
+          "when": "view == branchguard.team && viewItem =~ /comparable/",
+          "group": "inline@1"
+        },
+        {
+          "command": "branchguard.copyMessage",
+          "when": "view == branchguard.team && viewItem =~ /copyable/",
+          "group": "inline@2"
         }
       ],
       "commandPalette": [
-        { "command": "branchguard.showProblem", "when": "false" }
+        {
+          "command": "branchguard.showProblem",
+          "when": "false"
+        },
+        {
+          "command": "branchguard.copyMessage",
+          "when": "false"
+        },
+        {
+          "command": "branchguard.compare",
+          "when": "false"
+        }
       ]
     }
   },
@@ -79,6 +165,7 @@
   },
   "devDependencies": {
     "@types/vscode": "1.90.0",
+    "@vscode/codicons": "0.0.45",
     "@vscode/vsce": "^4.1.0",
     "esbuild": "^0.28.2"
   }

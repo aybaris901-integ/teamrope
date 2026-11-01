@@ -4,9 +4,11 @@ Keeps hackathon teams from breaking their Git repo under deadline pressure.
 
 Open the **branchguard** icon in the activity bar:
 
-- **You**: where you stand, and the one thing to do next.
-- **Actions**: Start task, Save, Sync, Team status.
-- **Team**: problems for the captain (conflicts, overlapping work, people who haven't saved in a while) and a table of everyone's branches.
+- **You**: one sentence about where you stand, one button for the next step (Start task, Share changes or Sync), and who else is changing the same code as you, with Compare and Copy message.
+- **Team**: problems for the captain (conflicts, overlapping work, people who haven't shared in a while), then everyone on the team with their status.
+- **Activity**: the latest commits across the team's branches.
+
+The status bar shows the short version: "1 to share", "Next: Sync", "In sync", or "Conflict in <file>".
 
 Every action shows its plan in plain English before it changes anything, makes a backup before it moves a branch, never pushes to main and never force-pushes.
 

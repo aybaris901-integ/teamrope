@@ -1,24 +1,24 @@
-// The sidebar: You, Actions and Team. All text comes from core's explain layer.
+// Native views: TEAM (problems, then members) and ACTIVITY (latest commits).
+// All text comes from core's explain layer.
 import {
-  explainDiagnosis,
-  explainOldBranches,
-  explainTeamProblem,
-  TEAM_STATUS_FOOTER,
-  teamStatusTable,
-  type NextAction,
+  explainMyProblem,
+  memberStatus,
+  shortDuration,
+  statusBarSummary,
+  type MyProblem,
+  type RemoteBranch,
 } from "@branchguard/core";
 import * as vscode from "vscode";
+import type { Avatars } from "./avatars.js";
+import { compareTargetFor } from "./problem-actions.js";
 import type { BranchguardState } from "./state.js";
 
-type Item = vscode.TreeItem & { children?: Item[] };
+/** A tree item that may carry the problem it shows (for Compare / Copy message). */
+export type Item = vscode.TreeItem & { children?: Item[]; problem?: MyProblem };
 
 function item(label: string, options: Partial<Item> = {}): Item {
   // Long sentences get cut off in the tree, so the tooltip holds the full text.
   return Object.assign(new vscode.TreeItem(label), { tooltip: label, ...options });
-}
-
-function warning(message: string): Item {
-  return item(message, { iconPath: new vscode.ThemeIcon("warning") });
 }
 
 abstract class Provider implements vscode.TreeDataProvider<Item> {
@@ -34,97 +34,92 @@ abstract class Provider implements vscode.TreeDataProvider<Item> {
   }
 
   getChildren(element?: Item): Item[] {
-    return element ? (element.children ?? []) : this.roots();
+    if (element) return element.children ?? [];
+    if (this.state.noRepo || !this.state.dir) return [];
+    return this.roots();
   }
 
   protected abstract roots(): Item[];
 }
 
-/** The diagnose summary, with the next step first and highlighted. */
-export class YouView extends Provider {
-  protected roots(): Item[] {
-    // No items: VS Code shows the welcome text (no folder / not a repo).
-    if (this.state.noRepo || !this.state.dir) return [];
-    if (this.state.error) return [warning(this.state.error)];
-    const d = this.state.diagnosis;
-    if (!d) return [item("Checking your repo…", { iconPath: new vscode.ThemeIcon("loading~spin") })];
+const PROBLEM_ICONS: Record<MyProblem["kind"], vscode.ThemeIcon> = {
+  mainConflict: new vscode.ThemeIcon("error", new vscode.ThemeColor("errorForeground")),
+  overlapWithMe: new vscode.ThemeIcon("warning", new vscode.ThemeColor("charts.yellow")),
+  team: new vscode.ThemeIcon("warning", new vscode.ThemeColor("charts.orange")),
+};
 
-    const { summary, next } = explainDiagnosis(d);
-    const nextItem = item(next, {
-      iconPath: new vscode.ThemeIcon(
-        "arrow-right",
-        new vscode.ThemeColor(d.nextAction ? "charts.yellow" : "charts.green"),
-      ),
-      command: { command: "branchguard.runNext", title: "Do the next step" },
-    });
-    return [nextItem, ...summary.map((line) => item(line))];
+/** Problems first (each with Compare / Copy message), then one row per member. */
+export class TeamView extends Provider {
+  constructor(
+    state: BranchguardState,
+    private readonly avatars: Avatars,
+  ) {
+    super(state);
   }
-}
 
-const ACTIONS: Array<{ label: string; command: string; action: NextAction | "teamStatus" }> = [
-  { label: "Start task", command: "branchguard.startTask", action: "startTask" },
-  { label: "Save", command: "branchguard.save", action: "save" },
-  { label: "Sync", command: "branchguard.sync", action: "sync" },
-  { label: "Team status", command: "branchguard.teamStatus", action: "teamStatus" },
-];
-
-/** The four buttons; the one diagnose suggests is starred. */
-export class ActionsView extends Provider {
   protected roots(): Item[] {
-    if (this.state.noRepo || !this.state.dir) return [];
-    const next = this.state.diagnosis?.nextAction;
-    return ACTIONS.map(({ label, command, action }) =>
-      item(label, {
-        description: action === next ? "next" : undefined,
-        iconPath: new vscode.ThemeIcon(
-          action === next ? "star-full" : "circle-outline",
-          action === next ? new vscode.ThemeColor("charts.yellow") : undefined,
-        ),
-        command: { command, title: label },
+    const now = new Date();
+    const problems = this.state.problems.map((problem) =>
+      item(explainMyProblem(problem, now), {
+        iconPath: PROBLEM_ICONS[problem.kind],
+        contextValue: compareTargetFor(problem) ? "problem copyable comparable" : "problem copyable",
+        command: { command: "branchguard.showProblem", title: "Show details", arguments: [problem] },
+        problem,
       }),
     );
+    if (this.state.teamError) {
+      problems.push(item(this.state.teamError, { iconPath: new vscode.ThemeIcon("warning") }));
+    }
+    return [...problems, ...this.members(now)];
+  }
+
+  private members(now: Date): Item[] {
+    const byOwner = new Map<string, RemoteBranch[]>();
+    for (const branch of this.state.team?.branches ?? []) {
+      byOwner.set(branch.owner, [...(byOwner.get(branch.owner) ?? []), branch]);
+    }
+    return [...byOwner].map(([owner, branches]) => {
+      const problem = this.state.problems.find(
+        (p) => p.kind === "overlapWithMe" && p.overlap.owner === owner,
+      );
+      const d = this.state.diagnosis;
+      const isMe = owner === this.state.me;
+      return item(isMe ? `${owner} (you)` : owner, {
+        iconPath: this.avatars.uri(owner),
+        description:
+          isMe && d
+            ? statusBarSummary(d, this.state.mainConflicts).text
+            : memberStatus(owner, branches, this.state.problems, now),
+        collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
+        contextValue: problem ? "member copyable comparable" : "member",
+        problem,
+        children: branches.map((b) =>
+          item(b.branch, {
+            iconPath: new vscode.ThemeIcon("git-branch"),
+            description: `+${b.ahead} / -${b.behind} · ${shortDuration(now.getTime() - b.lastSave.getTime())} ago`,
+          }),
+        ),
+      });
+    });
   }
 }
 
-/** Team problems (clickable), then the branch table, collapsed. */
-export class TeamView extends Provider {
+/** The last few commits across the team repo's branches. */
+export class ActivityView extends Provider {
+  constructor(
+    state: BranchguardState,
+    private readonly avatars: Avatars,
+  ) {
+    super(state);
+  }
+
   protected roots(): Item[] {
-    if (this.state.noRepo || !this.state.dir) return [];
-    if (this.state.teamError) return [warning(this.state.teamError)];
-    const status = this.state.team;
-    if (!status) return [item("Checking the team…", { iconPath: new vscode.ThemeIcon("loading~spin") })];
-
-    const items: Item[] = [];
-    if (status.problems.length === 0) {
-      items.push(
-        item("No problems. Everyone's work combines cleanly.", {
-          iconPath: new vscode.ThemeIcon("check", new vscode.ThemeColor("charts.green")),
-        }),
-      );
-    }
-    for (const problem of status.problems) {
-      const line = explainTeamProblem(problem, status.mainBranch);
-      items.push(
-        item(line, {
-          iconPath: new vscode.ThemeIcon("warning", new vscode.ThemeColor("charts.orange")),
-          command: { command: "branchguard.showProblem", title: "Show problem", arguments: [line] },
-        }),
-      );
-    }
-
-    const table = teamStatusTable(status);
-    if (table.length > 0) {
-      items.push(
-        item("Branches", {
-          collapsibleState: vscode.TreeItemCollapsibleState.Collapsed,
-          iconPath: new vscode.ThemeIcon("git-branch"),
-          children: table.map((row) => item(row)),
-        }),
-      );
-    }
-    const old = explainOldBranches(status);
-    if (old) items.push(item(old, { iconPath: new vscode.ThemeIcon("archive") }));
-    items.push(item(TEAM_STATUS_FOOTER, { iconPath: new vscode.ThemeIcon("info") }));
-    return items;
+    const now = new Date();
+    return this.state.activity.map((entry) =>
+      item(`${entry.author} · ${entry.subject}`, {
+        iconPath: this.avatars.uri(entry.author),
+        description: `${entry.branch} · ${shortDuration(now.getTime() - entry.date.getTime())} ago`,
+      }),
+    );
   }
 }

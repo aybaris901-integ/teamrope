@@ -1,14 +1,18 @@
-// Status bar item: "Next: Save" or "All good"; clicking runs the next step.
-import { explainDiagnosis, shortNextAction } from "@branchguard/core";
+// Status bar: "Conflict in <file>", "1 to share", "Next: Sync", "In sync".
+import { explainDiagnosis, statusBarSummary, type StatusBarKind } from "@branchguard/core";
 import * as vscode from "vscode";
 import type { BranchguardState } from "./state.js";
 
-/** Next actions that need a person, not a button: shown as a warning. */
-const NEEDS_ATTENTION = new Set(["finishOperation", "askCaptain", "fixAccess"]);
+const LOOK: Record<StatusBarKind, { icon: string; command: string; background?: string }> = {
+  conflict: { icon: "$(error)", command: "branchguard.sync", background: "statusBarItem.errorBackground" },
+  toShare: { icon: "$(cloud-upload)", command: "branchguard.save" },
+  sync: { icon: "$(sync)", command: "branchguard.sync" },
+  attention: { icon: "$(warning)", command: "branchguard.runNext", background: "statusBarItem.warningBackground" },
+  inSync: { icon: "$(check)", command: "branchguard.runNext" },
+};
 
 export function createStatusBar(state: BranchguardState): vscode.Disposable {
   const bar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-  bar.command = "branchguard.runNext";
 
   const update = (): void => {
     const d = state.diagnosis;
@@ -16,13 +20,12 @@ export function createStatusBar(state: BranchguardState): vscode.Disposable {
       bar.hide();
       return;
     }
-    const short = shortNextAction(d);
-    bar.text = short ? `$(shield) Next: ${short}` : "$(shield) All good";
+    const { kind, text } = statusBarSummary(d, state.mainConflicts);
+    const look = LOOK[kind];
+    bar.text = `${look.icon} ${text}`;
+    bar.command = look.command;
     bar.tooltip = explainDiagnosis(d).next;
-    bar.backgroundColor =
-      d.nextAction && NEEDS_ATTENTION.has(d.nextAction)
-        ? new vscode.ThemeColor("statusBarItem.warningBackground")
-        : undefined;
+    bar.backgroundColor = look.background ? new vscode.ThemeColor(look.background) : undefined;
     bar.show();
   };
 
