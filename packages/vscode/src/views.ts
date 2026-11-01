@@ -5,6 +5,7 @@ import {
   involvesMe,
   memberStatus,
   shortDuration,
+  shortProblemLabel,
   statusBarSummary,
   type MyProblem,
   type RemoteBranch,
@@ -64,7 +65,8 @@ export class TeamView extends Provider {
     const myBranch = this.state.diagnosis?.currentBranch ?? null;
     const others = this.state.problems.filter((p) => !involvesMe(p, myBranch, this.state.me));
     const problems = others.map((problem) =>
-      item(explainMyProblem(problem, now), {
+      item(shortProblemLabel(problem), {
+        tooltip: explainMyProblem(problem, now),
         iconPath: PROBLEM_ICONS[problem.kind],
         contextValue: compareTargetFor(problem) ? "problem copyable comparable" : "problem copyable",
         command: { command: "branchguard.showProblem", title: "Show details", arguments: [problem] },

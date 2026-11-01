@@ -30,6 +30,7 @@ export {
   overlapMessage,
   problemMessage,
   shortDuration,
+  shortProblemLabel,
   statusBarSummary,
   type StatusBarKind,
   type Severity,

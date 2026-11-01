@@ -821,6 +821,38 @@ export function headline(
   return { severity, sentence: `${reason} ${text}` };
 }
 
+function fileName(file: string): string {
+  return file.split("/").pop() ?? file;
+}
+
+/** A few words that fit a narrow sidebar: "hank: conflict with main", "alice + frank: same code in app.js". */
+export function shortProblemLabel(problem: MyProblem, mainBranch = "main"): string {
+  switch (problem.kind) {
+    case "mainConflict":
+      return `you: conflict with ${mainBranch} in ${fileName(problem.conflict.path)}`;
+    case "overlapWithMe":
+      return `${problem.overlap.owner} + you: same code in ${fileName(problem.file.path)}`;
+    case "team": {
+      const p = problem.problem;
+      switch (p.kind) {
+        case "conflictWithMain":
+          return `${p.owner}: conflict with ${mainBranch}`;
+        case "overlap": {
+          const [a, b] = p.overlap.owners;
+          const who = a === b ? a : `${a} + ${b}`;
+          const [first, ...rest] = p.overlap.files;
+          const more = rest.length > 0 ? ` (+${rest.length})` : "";
+          return `${who}: same code in ${fileName(first ?? "")}${more}`;
+        }
+        case "noRecentSave":
+          return `${p.owner}: not shared for ${p.hours} h`;
+        case "farBehind":
+          return `${p.owner}: ${p.behind} behind ${mainBranch}`;
+      }
+    }
+  }
+}
+
 /** One line for a problem in the panel or the Team view. */
 export function explainMyProblem(problem: MyProblem, now: Date, mainBranch = "main"): string {
   switch (problem.kind) {

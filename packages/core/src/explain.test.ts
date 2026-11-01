@@ -8,6 +8,7 @@ import {
   overlapMessage,
   problemMessage,
   shortDuration,
+  shortProblemLabel,
 } from "./explain.js";
 import type { MyProblem } from "./my-problems.js";
 import type { OverlapWithMe } from "./overlaps.js";
@@ -233,6 +234,22 @@ describe("panel text", () => {
     expect(headline({ ...base, dirtyFiles: ["src/app.js"], nextAction: "save" }, [oneLine]).sentence).toBe(
       "You have 1 file not shared. alice changed the same line — talk before merging.",
     );
+  });
+
+  test("short labels fit a narrow sidebar", () => {
+    const team = (problem: Extract<MyProblem, { kind: "team" }>["problem"]): MyProblem => ({ kind: "team", problem });
+    expect(shortProblemLabel(team({ kind: "conflictWithMain", branch: "hank/feature", owner: "hank", conflicts: [] }))).toBe(
+      "hank: conflict with main",
+    );
+    expect(
+      shortProblemLabel(
+        team({ kind: "overlap", overlap: { branches: ["alice/feature", "frank/feature"], owners: ["alice", "frank"], files: ["src/app.js"] } }),
+      ),
+    ).toBe("alice + frank: same code in app.js");
+    expect(shortProblemLabel(team({ kind: "noRecentSave", branch: "olive/idea", owner: "olive", hours: 3 }))).toBe(
+      "olive: not shared for 3 h",
+    );
+    expect(shortProblemLabel(overlapProblem)).toBe("alice + you: same code in app.js");
   });
 
   test("messages for team problems address the owner without pronouns", () => {
