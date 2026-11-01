@@ -45,7 +45,8 @@ body {
 .primary:hover { background: var(--vscode-button-hoverBackground); }
 .block { width: 100%; margin-bottom: 10px; }
 
-.secondary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.secondary { display: flex; gap: 6px; margin-bottom: 12px; }
+.secondary .button { flex: 1; min-width: 0; white-space: nowrap; }
 .small {
   padding: 2px 8px;
   color: var(--vscode-button-secondaryForeground);

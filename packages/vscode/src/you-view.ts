@@ -45,7 +45,6 @@ const ALLOWED_COMMANDS = new Set([
   "branchguard.startTask",
   "branchguard.save",
   "branchguard.sync",
-  "branchguard.teamStatus",
   "branchguard.runNext",
   "branchguard.refresh",
   "vscode.openFolder",
@@ -56,7 +55,6 @@ const ACTIONS: ButtonModel[] = [
   { label: "Start task", command: "branchguard.startTask", icon: "add" },
   { label: "Share changes", command: "branchguard.save", icon: "cloud-upload" },
   { label: "Sync", command: "branchguard.sync", icon: "sync" },
-  { label: "Team status", command: "branchguard.teamStatus", icon: "organization" },
 ];
 
 const NEXT_COMMANDS: Record<string, string> = {
