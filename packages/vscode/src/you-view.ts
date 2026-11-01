@@ -70,6 +70,8 @@ export class YouView implements vscode.WebviewViewProvider {
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly state: BranchguardState,
+    /** Called whenever the view is shown: opening it opts the workspace in. */
+    private readonly onShown: () => void,
     private readonly onProblem: (problem: MyProblem, action: "compare" | "copy" | "details") => void,
   ) {
     state.onDidChange(() => this.update());
@@ -88,11 +90,14 @@ export class YouView implements vscode.WebviewViewProvider {
     view.webview.html = this.html(view.webview);
     view.webview.onDidReceiveMessage((message: FromPage) => this.receive(message));
     view.onDidChangeVisibility(() => {
-      if (view.visible) this.update();
+      if (!view.visible) return;
+      this.onShown();
+      this.update();
     });
     view.onDidDispose(() => {
       this.view = undefined;
     });
+    this.onShown();
     this.update();
   }
 
@@ -116,7 +121,7 @@ export class YouView implements vscode.WebviewViewProvider {
     const problems = this.state.problems.length;
     const toShare = d?.dirtyFiles.length ?? 0;
     view.badge =
-      problems + toShare > 0
+      this.state.active && problems + toShare > 0
         ? { value: problems + toShare, tooltip: `${problems} problem(s), ${toShare} file(s) to share` }
         : undefined;
     if (this.pageReady) void view.webview.postMessage(this.model());

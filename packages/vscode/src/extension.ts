@@ -14,6 +14,8 @@ import { YouView } from "./you-view.js";
 const SAVE_DEBOUNCE_MS = 1500;
 const WALKTHROUGH_SHOWN = "branchguard.walkthroughShown";
 const TEAM_OPENED_FOR_CAPTAIN = "branchguard.teamOpenedForCaptain";
+/** Per workspace: the user opened the branchguard view here, so we may fetch and show status. */
+const VIEW_OPENED = "branchguard.viewOpened";
 
 type Role = "captain" | "member";
 
@@ -30,18 +32,34 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const { binary } = configureGit({ binary: gitApi?.git.path });
   output.log(`Using git: ${binary}${gitApi ? "" : " (VS Code's Git extension isn't available)"}`);
 
-  const state = new BranchguardState(gitApi, (line) => output.log(line));
+  const state = new BranchguardState(
+    gitApi,
+    (line) => output.log(line),
+    () => context.workspaceState.get<boolean>(VIEW_OPENED, false),
+  );
+  // Opening branchguard (a view, or one of its actions) opts this workspace in.
+  const optIn = (): void => {
+    if (context.workspaceState.get<boolean>(VIEW_OPENED, false)) return;
+    void context.workspaceState.update(VIEW_OPENED, true).then(() => state.refresh("auto"));
+  };
   const actions = new Actions(state, output);
 
   const avatars = new Avatars(context.globalStorageUri);
-  const you = new YouView(context.extensionUri, state, (problem, action) => {
+  const you = new YouView(context.extensionUri, state, optIn, (problem, action) => {
     const id = { compare: "branchguard.compare", copy: "branchguard.copyMessage", details: "branchguard.showProblem" }[action];
     void vscode.commands.executeCommand(id, problem);
   });
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider("branchguard.you", you),
-    vscode.window.registerTreeDataProvider("branchguard.team", new TeamView(state, avatars)),
-    vscode.window.registerTreeDataProvider("branchguard.activity", new ActivityView(state, avatars)),
+    ...[
+      vscode.window.createTreeView("branchguard.team", { treeDataProvider: new TeamView(state, avatars) }),
+      vscode.window.createTreeView("branchguard.activity", { treeDataProvider: new ActivityView(state, avatars) }),
+    ].flatMap((tree) => [
+      tree,
+      tree.onDidChangeVisibility((event) => {
+        if (event.visible) optIn();
+      }),
+    ]),
     // Read-only "file at a ref" documents for Compare.
     vscode.workspace.registerTextDocumentContentProvider(GIT_SCHEME, {
       async provideTextDocumentContent(uri) {
@@ -67,15 +85,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }),
     );
   };
-  command("branchguard.startTask", () => actions.startTask());
-  command("branchguard.save", () => actions.save());
-  command("branchguard.sync", () => actions.sync());
-  command("branchguard.teamStatus", () => actions.teamStatus());
+  /** Running one of branchguard's actions also opts this workspace in. */
+  const optingIn = (run: () => Promise<void>) => async (): Promise<void> => {
+    optIn();
+    await run();
+  };
+  command("branchguard.startTask", optingIn(() => actions.startTask()));
+  command("branchguard.save", optingIn(() => actions.save()));
+  command("branchguard.sync", optingIn(() => actions.sync()));
+  command("branchguard.teamStatus", optingIn(() => actions.teamStatus()));
   command("branchguard.runNext", () => actions.runNext());
   command("branchguard.showProblem", (problem: never) => actions.showProblem(problem));
   command("branchguard.copyMessage", (target: never) => actions.copyMessage(target));
   command("branchguard.compare", (target: never) => actions.compare(target));
-  command("branchguard.refresh", () => state.refresh("force"));
+  command("branchguard.refresh", optingIn(() => state.refresh("force")));
   const walkthroughId = `${context.extension.id}#getStarted`;
   command("branchguard.openWalkthrough", async () => {
     await vscode.commands.executeCommand("workbench.action.openWalkthrough", walkthroughId, false);
@@ -93,7 +116,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration("branchguard.role")) void openTeamForCaptain();
+      if (event.affectsConfiguration("branchguard.role") && state.active) void openTeamForCaptain();
     }),
   );
 
@@ -138,7 +161,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   await state.refresh("auto");
   await showWalkthroughOnce();
-  if (state.dir && !state.noRepo) await openTeamForCaptain();
+  if (state.active && !state.noRepo) await openTeamForCaptain();
 }
 
 export function deactivate(): void {}

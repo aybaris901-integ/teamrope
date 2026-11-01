@@ -38,7 +38,7 @@ abstract class Provider implements vscode.TreeDataProvider<Item> {
 
   getChildren(element?: Item): Item[] {
     if (element) return element.children ?? [];
-    if (this.state.noRepo || !this.state.dir) return [];
+    if (this.state.noRepo || !this.state.dir || !this.state.active) return [];
     return this.roots();
   }
 

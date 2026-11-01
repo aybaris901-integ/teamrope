@@ -16,7 +16,7 @@ export function createStatusBar(state: BranchguardState): vscode.Disposable {
 
   const update = (): void => {
     const d = state.diagnosis;
-    if (!d || state.noRepo) {
+    if (!d || state.noRepo || !state.active) {
       bar.hide();
       return;
     }

@@ -1,6 +1,8 @@
 // Cached diagnose, Team status, overlaps and the main-conflict preview for the
 // current folder. Fetches (network) at most every FETCH_INTERVAL_MS unless forced;
 // everything else is local and runs on every refresh.
+// Opt-in: nothing runs in a repo until the user has used branchguard there
+// (branchguard.name set, or the branchguard view opened in this workspace).
 import {
   diagnose,
   notSharedSince,
@@ -49,6 +51,8 @@ export class BranchguardState {
   noRepo = false;
   /** My name as a branch prefix (saved, or suggested from user.name). */
   me: string | undefined;
+  /** False until the user opted in for this repo: then everything stays silent. */
+  active = false;
 
   private readonly lastFetch = new Map<string, number>();
   private readonly knownRemote = new Map<string, RemoteState>();
@@ -58,7 +62,19 @@ export class BranchguardState {
   constructor(
     private readonly gitApi: GitApi | undefined,
     private readonly log: (line: string) => void,
+    /** True once the user opened the branchguard view in this workspace. */
+    private readonly viewOpened: () => boolean,
   ) {}
+
+  /** Opted in: the view was opened here, or this repo has a saved branchguard.name. */
+  private async optedIn(dir: string): Promise<boolean> {
+    if (this.viewOpened()) return true;
+    try {
+      return (await readMemberName(dir)).saved !== null;
+    } catch {
+      return false;
+    }
+  }
 
   context(): RepoContext | undefined {
     return repoContext(this.gitApi);
@@ -74,6 +90,11 @@ export class BranchguardState {
     const ctx = this.context();
     this.dir = ctx?.dir;
     if (!ctx) {
+      this.clear(false);
+      return;
+    }
+    this.active = await this.optedIn(ctx.dir);
+    if (!this.active) {
       this.clear(false);
       return;
     }
