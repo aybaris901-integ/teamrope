@@ -1,0 +1,279 @@
+<!doctype html>
+<!--
+  RELEASE MODE FLAG
+  data-mode="vsix"        → not on the Marketplace yet: shows "Download .vsix" + the 2-step install note
+  data-mode="marketplace" → published: shows "Install in VS Code", Marketplace / Open VSX links, CLI command
+  Flip this one attribute; nothing else needs editing.
+-->
+<html lang="en" data-mode="vsix">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TeamRope — Git for hackathon teams</title>
+<meta name="description" content="A VS Code extension that gets your hackathon team shipping on time, even if half of them have never used Git.">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0b1019" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
+<meta property="og:title" content="TeamRope — Git for hackathon teams">
+<meta property="og:description" content="Your team ships on time, even if half of them have never used Git.">
+<meta property="og:image" content="assets/icon@2x.png">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/icon.png" type="image/png" sizes="128x128">
+<link rel="apple-touch-icon" href="assets/icon@2x.png">
+<style>
+:root{
+  --bg:#0b1019;--bg-2:#121a26;--line:#243042;--text:#e2e8f0;--muted:#94a3b8;
+  --accent:#2dd4bf;--accent-text:#2dd4bf;--accent-ink:#0b1019;--ok:#5fd18a;
+  --code-bg:#0a0e13;--radius:14px;--max:1040px;
+  --mono:ui-monospace,SFMono-Regular,"Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:light){
+  :root{
+    --bg:#f8fafc;--bg-2:#ffffff;--line:#e2e8f0;--text:#0f172a;--muted:#475569;
+    --accent:#0f766e;--accent-text:#0f766e;--accent-ink:#ffffff;--ok:#1d8a4a;--code-bg:#f1f5f9;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 var(--sans);overflow-x:hidden}
+a{color:inherit}
+img{max-width:100%;height:auto;display:block}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 16px}
+section{padding:72px 0;border-top:1px solid var(--line)}
+h1,h2,h3{line-height:1.15;margin:0;letter-spacing:-.02em}
+h2{font-size:clamp(1.6rem,4vw,2.2rem);margin-bottom:28px}
+.eyebrow{font:600 .78rem/1 var(--mono);text-transform:uppercase;letter-spacing:.12em;color:var(--accent-text);margin-bottom:14px}
+
+/* mode switching */
+[data-mode="vsix"] .when-published{display:none!important}
+[data-mode="marketplace"] .when-vsix{display:none!important}
+
+/* nav */
+nav{display:flex;align-items:center;justify-content:space-between;padding:20px 0}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;text-decoration:none;font-size:1.05rem}
+.brand img{width:30px;height:30px}
+nav .gh{font-size:.9rem;color:var(--muted);text-decoration:none}
+nav .gh:hover{color:var(--text)}
+
+/* hero */
+.hero{padding:56px 0 80px;border-top:0}
+.hero-grid{display:grid;gap:40px;align-items:center}
+.hero-grid>*{min-width:0}
+@media (min-width:860px){.hero-grid{grid-template-columns:1.25fr .75fr}}
+.hero h1{font-size:clamp(2.1rem,7vw,3.6rem);font-weight:800}
+.hero h1 .dash{color:var(--muted);font-weight:400}
+.hero p.lede{font-size:clamp(1.1rem,2.6vw,1.3rem);color:var(--muted);margin:20px 0 32px;max-width:34ch}
+.hero-icon{justify-self:center;width:min(240px,55vw);aspect-ratio:1;border-radius:22.5%;
+  box-shadow:0 30px 80px -30px color-mix(in srgb,var(--accent) 45%,transparent)}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:10px;font-weight:700;
+  text-decoration:none;border:1px solid transparent;font-size:1rem;cursor:pointer}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-ghost{border-color:var(--line);background:var(--bg-2)}
+.btn-ghost:hover{border-color:var(--muted)}
+.btn svg{width:18px;height:18px;flex:none}
+.alt-links{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:18px;font-size:.92rem;color:var(--muted)}
+.alt-links a{text-underline-offset:3px}
+.alt-links a:hover{color:var(--text)}
+
+.cmd{margin-top:18px;display:flex;align-items:stretch;max-width:100%;border:1px solid var(--line);border-radius:10px;background:var(--code-bg);overflow:hidden}
+.cmd code{flex:1;min-width:0;padding:12px 14px;font:.88rem/1.4 var(--mono);white-space:nowrap;overflow-x:auto;user-select:all}
+.cmd code::before{content:"$ ";color:var(--muted)}
+.cmd button{flex:none;border:0;border-left:1px solid var(--line);background:transparent;color:var(--muted);padding:0 14px;font:600 .82rem var(--sans);cursor:pointer}
+.cmd button:hover{color:var(--text)}
+
+.vsix-note{margin-top:22px;padding:16px 18px;border:1px dashed var(--line);border-radius:var(--radius);font-size:.95rem;max-width:520px}
+.vsix-note strong{display:block;margin-bottom:6px}
+.vsix-note ol{margin:0;padding-left:1.2em;color:var(--muted)}
+.vsix-note li{margin:4px 0}
+.vsix-note kbd{font:.85em var(--mono);padding:1px 6px;border:1px solid var(--line);border-radius:5px;background:var(--code-bg);color:var(--text)}
+
+/* problem */
+.problems{display:grid;gap:16px}
+@media (min-width:760px){.problems{grid-template-columns:repeat(3,1fr)}}
+.problem{padding:24px;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-2)}
+.problem h3{font-size:1.1rem;margin:0 0 8px}
+.problem p{margin:0;color:var(--muted);font-size:.96rem}
+
+/* demo */
+.demo{border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--code-bg);
+  aspect-ratio:960/432;display:grid;place-items:center;position:relative}
+.demo video,.demo img{width:100%;height:100%;object-fit:contain;display:block}
+
+/* actions */
+.actions{display:grid;gap:16px}
+@media (min-width:640px){.actions{grid-template-columns:repeat(2,1fr)}}
+.action{display:flex;gap:16px;padding:22px;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg-2)}
+.action .n{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font:700 .95rem var(--mono);
+  background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent-text)}
+.action h3{font-size:1.08rem;margin-bottom:6px}
+.action p{margin:0;color:var(--muted);font-size:.95rem}
+
+/* never */
+.never{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+@media (min-width:760px){.never{grid-template-columns:repeat(2,1fr)}}
+.never li{display:flex;gap:14px;align-items:flex-start;padding:18px 20px;border:1px solid var(--line);border-radius:var(--radius)}
+.never li svg{flex:none;width:22px;height:22px;margin-top:2px;color:var(--ok)}
+.never b{display:block}
+.never span{color:var(--muted);font-size:.94rem}
+
+/* hackathon */
+.event{text-align:center}
+.event p{color:var(--muted);max-width:48ch;margin:0 auto 28px;font-size:1.08rem}
+
+footer{border-top:1px solid var(--line);padding:28px 0 40px;color:var(--muted);font-size:.88rem}
+footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:space-between;align-items:baseline}
+footer a{color:var(--muted)}
+
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#"><img src="assets/icon.svg" alt="" width="30" height="30">TeamRope</a>
+        <a class="gh" href="https://github.com/aybaris901-integ/teamrope">GitHub →</a>
+  </nav>
+</div>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="eyebrow">VS Code extension</div>
+      <h1>TeamRope <span class="dash">—</span> Git for hackathon teams</h1>
+      <p class="lede">Your team ships on time, even if half of them have never used Git.</p>
+
+      <!-- Published mode -->
+      <div class="when-published">
+        <div class="cta">
+          <a class="btn btn-primary" href="vscode:extension/teamrope-dev.teamrope">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>
+            Install in VS Code
+          </a>
+        </div>
+        <div class="alt-links">
+          <a href="https://marketplace.visualstudio.com/items?itemName=teamrope-dev.teamrope">VS Code Marketplace</a>
+          <a href="https://open-vsx.org/extension/teamrope-dev/teamrope">Open VSX (Cursor, Windsurf)</a>
+        </div>
+        <div class="cmd">
+          <code id="cli">code --install-extension teamrope-dev.teamrope</code>
+          <button type="button" data-copy="cli" aria-label="Copy install command">Copy</button>
+        </div>
+      </div>
+
+      <!-- Pre-release mode -->
+      <div class="when-vsix">
+        <div class="cta">
+                    <a class="btn btn-primary" href="https://github.com/aybaris901-integ/teamrope/releases/latest/download/teamrope.vsix" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 20h16"/></svg>
+            Download .vsix
+          </a>
+        </div>
+        <div class="vsix-note">
+          <strong>Install from VSIX</strong>
+          <ol>
+            <li>Download <code>teamrope.vsix</code> with the button above.</li>
+            <li>In VS Code, Cursor or Windsurf open the Extensions view, click <kbd>···</kbd> → <b>Install from VSIX…</b>, and pick the file.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+    <img class="hero-icon" src="assets/icon.svg" alt="TeamRope icon" width="240" height="240">
+  </div>
+</header>
+
+<main>
+  <section id="problem">
+    <div class="wrap">
+      <div class="eyebrow">The problem</div>
+      <h2>What went wrong at my hackathon</h2>
+      <div class="problems">
+        <article class="problem">
+          <h3>Teammates couldn't even open their branches</h3>
+          <p>Even with step-by-step instructions, they were afraid of branches and conflicts.</p>
+        </article>
+        <article class="problem">
+          <h3>AI couldn't see our repo</h3>
+          <p>They asked AI and followed it, but it gave generic advice for a repo it couldn't see.</p>
+        </article>
+        <article class="problem">
+          <h3>The merge broke at the end</h3>
+          <p>Nobody knew what the others had committed, the pull request broke, and we didn't submit in time.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="demo">
+    <div class="wrap">
+      <div class="eyebrow">See it</div>
+      <h2>Four buttons. No terminal.</h2>
+      <div class="demo">
+        <video autoplay muted loop playsinline preload="metadata" poster="media/poster.jpg" width="960" height="432" aria-label="TeamRope in VS Code: a note that teammates changed the same line, Sync stopping before a conflict, and the Team view">
+          <source src="media/demo.mp4" type="video/mp4">
+          <img src="media/demo.gif" alt="TeamRope in VS Code: a note that teammates changed the same line, Sync stopping before a conflict, and the Team view" width="960" height="431" loading="lazy">
+        </video>
+      </div>
+    </div>
+  </section>
+
+  <section id="actions">
+    <div class="wrap">
+      <div class="eyebrow">What you click</div>
+      <h2>The 4 actions</h2>
+      <div class="actions">
+        <div class="action"><div class="n">1</div><div><h3>Start task</h3><p>Gives you your own branch from the latest main, so you never work on main or step on anyone else's work. If you already started coding on main, your changes move to your new branch.</p></div></div>
+        <div class="action"><div class="n">2</div><div><h3>Share changes</h3><p>Saves your work and uploads it to your own branch in one click. Secrets like <code>.env</code> files and build folders are left out by default.</p></div></div>
+        <div class="action"><div class="n">3</div><div><h3>Sync</h3><p>Brings in the latest main. It checks for conflicts first, and if there would be one, it stops, changes nothing, and shows who changed the same lines.</p></div></div>
+        <div class="action"><div class="n">4</div><div><h3>Team status</h3><p>Shows who is working on what, who changed the same code as someone else, and whose work would conflict with main, before anyone merges.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="never">
+    <div class="wrap">
+      <div class="eyebrow">Safety</div>
+      <h2>What it never does</h2>
+      <ul class="never">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><div><b>No force-push</b><span>Your history is never rewritten.</span></div></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><div><b>Never pushes to main</b><span>Main is never pushed to directly.</span></div></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><div><b>Backups first</b><span>A backup is made before anything that changes your files.</span></div></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><div><b>No telemetry</b><span>Nothing about you or your code is collected.</span></div></li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><div><b>No server</b><span>Only your own Git remote. No account to create.</span></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="hackathon" class="event">
+    <div class="wrap">
+      <div class="eyebrow">Organizers &amp; teams</div>
+      <h2>Have a hackathon coming up?</h2>
+      <p>Tell me about your event and I'll help your team get set up.</p>
+      <a class="btn btn-primary" href="https://tally.so/r/5XbL9Q" target="_blank" rel="noopener">Tell me about your event</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Built by <a href="https://github.com/aybaris901-integ">Aybaris</a>, 16, after his hackathon team missed the deadline because of Git</span>
+    <a href="https://github.com/aybaris901-integ/teamrope">Source on GitHub</a>
+  </div>
+</footer>
+
+<script>
+document.querySelectorAll('[data-copy]').forEach(function(b){
+  b.addEventListener('click',function(){
+    var t=document.getElementById(b.dataset.copy).textContent;
+    var done=function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1600)};
+    if(navigator.clipboard){navigator.clipboard.writeText(t).then(done,function(){})}
+  });
+});
+var v=document.querySelector('.demo video');
+if(v&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){v.removeAttribute('autoplay');v.pause();v.controls=true}
+</script>
+</body>
+</html>

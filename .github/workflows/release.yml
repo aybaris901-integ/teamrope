@@ -1,0 +1,55 @@
+name: Release .vsix
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Check tag matches packages/vscode version
+        run: |
+          PKG="v$(node -p "require('./packages/vscode/package.json').version")"
+          if [ "$PKG" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match packages/vscode/package.json version $PKG"
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Package extension
+        run: npm run package -w teamrope
+
+      - name: Collect teamrope.vsix
+        run: |
+          mapfile -t FOUND < <(find packages/vscode -maxdepth 2 -name '*.vsix' -not -path '*/node_modules/*')
+          if [ "${#FOUND[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one .vsix in packages/vscode, found ${#FOUND[@]}: ${FOUND[*]}"
+            exit 1
+          fi
+          cp "${FOUND[0]}" teamrope.vsix
+          ls -la teamrope.vsix
+
+      - name: Create release and attach teamrope.vsix
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" teamrope.vsix --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" teamrope.vsix --title "$GITHUB_REF_NAME" --generate-notes
+          fi
