@@ -5,6 +5,7 @@ import {
   explainMyProblem,
   involvesMe,
   memberStatus,
+  onePerPerson,
   shortProblemLabel,
   statusBarSummary,
   type MyProblem,
@@ -64,9 +65,10 @@ export class TeamView extends Provider {
     // Problems about me live in the You panel; Team shows everyone else's.
     const myBranch = this.state.diagnosis?.currentBranch ?? null;
     const others = this.state.problems.filter((p) => !involvesMe(p, myBranch, this.state.me));
-    const problems = others.map((problem) =>
+    // One row per person: the most severe problem, the rest in the tooltip.
+    const problems = onePerPerson(others, this.state.me).map(({ problem, more }) =>
       item(shortProblemLabel(problem), {
-        tooltip: explainMyProblem(problem, now),
+        tooltip: [explainMyProblem(problem, now), ...more.map((p) => `Also: ${explainMyProblem(p, now)}`)].join("\n\n"),
         iconPath: PROBLEM_ICONS[problem.kind],
         contextValue: compareTargetFor(problem) ? "problem copyable comparable" : "problem copyable",
         command: { command: "branchguard.showProblem", title: "Show details", arguments: [problem] },

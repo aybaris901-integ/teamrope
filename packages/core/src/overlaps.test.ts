@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { copyPlayground, git, type PlaygroundCopy } from "../test/playground-copy.js";
-import { involvesMe, problemsForMe, type MyProblem } from "./my-problems.js";
+import { involvesMe, onePerPerson, problemsForMe, type MyProblem } from "./my-problems.js";
 import {
   fileAtRef,
   notSharedSince,
@@ -168,6 +168,22 @@ describe("involvesMe", () => {
       involvesMe(team({ kind: "overlap", overlap: { branches: ["alice/feature", "frank/feature"], owners: ["alice", "frank"], files: ["a"] } }), mine, "carol"),
     ).toBe(false);
     expect(involvesMe(team({ kind: "conflictWithMain", branch: "hank/feature", owner: "hank", conflicts: [] }), mine, "carol")).toBe(false);
+  });
+});
+
+describe("onePerPerson", () => {
+  const team = (problem: Extract<MyProblem, { kind: "team" }>["problem"]): MyProblem => ({ kind: "team", problem });
+  test("keeps each person's most severe problem and folds the rest into it", () => {
+    const hank = team({ kind: "conflictWithMain", branch: "hank/feature", owner: "hank", conflicts: [] });
+    const pair = team({ kind: "overlap", overlap: { branches: ["alice/feature", "frank/feature"], owners: ["alice", "frank"], files: ["a"] } });
+    const hankBehind = team({ kind: "farBehind", branch: "hank/feature", owner: "hank", behind: 6 });
+    const frankBehind = team({ kind: "farBehind", branch: "frank/feature", owner: "frank", behind: 7 });
+    const olive = team({ kind: "farBehind", branch: "olive/idea", owner: "olive", behind: 8 });
+    expect(onePerPerson([hank, pair, hankBehind, frankBehind, olive], "carol")).toEqual([
+      { problem: hank, more: [hankBehind] },
+      { problem: pair, more: [frankBehind] },
+      { problem: olive, more: [] },
+    ]);
   });
 });
 

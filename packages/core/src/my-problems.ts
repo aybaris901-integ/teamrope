@@ -20,6 +20,38 @@ export function involvesMe(problem: MyProblem, myBranch: string | null, me: stri
   }
 }
 
+/** The people a problem is about: its branch owners, or me for my own problems. */
+export function problemPeople(problem: MyProblem, me: string | undefined): string[] {
+  if (problem.kind !== "team") return [me ?? "you"];
+  const p = problem.problem;
+  return p.kind === "overlap" ? [...new Set(p.overlap.owners)] : [p.owner];
+}
+
+/**
+ * One entry per person: the first (most severe) problem that brings someone
+ * new, with later problems about the same people folded into it. Problems
+ * must come most severe first, as problemsForMe and teamStatus return them.
+ */
+export function onePerPerson(
+  problems: MyProblem[],
+  me: string | undefined,
+): Array<{ problem: MyProblem; more: MyProblem[] }> {
+  const rows: Array<{ problem: MyProblem; more: MyProblem[] }> = [];
+  const rowOf = new Map<string, { problem: MyProblem; more: MyProblem[] }>();
+  for (const problem of problems) {
+    const people = problemPeople(problem, me);
+    const existing = people.map((person) => rowOf.get(person));
+    if (existing.every(Boolean)) {
+      existing[0]?.more.push(problem);
+      continue;
+    }
+    const row: { problem: MyProblem; more: MyProblem[] } = { problem, more: [] };
+    rows.push(row);
+    for (const person of people) if (!rowOf.has(person)) rowOf.set(person, row);
+  }
+  return rows;
+}
+
 /**
  * Local results win over Team status (they include work not shared yet and
  * have line ranges): a team overlap between my branch and a teammate's is

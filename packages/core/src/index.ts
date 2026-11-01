@@ -130,4 +130,4 @@ export {
   type TheirSide,
   type TheirSideCache,
 } from "./overlaps.js";
-export { involvesMe, problemsForMe, type MyProblem } from "./my-problems.js";
+export { involvesMe, onePerPerson, problemPeople, problemsForMe, type MyProblem } from "./my-problems.js";
