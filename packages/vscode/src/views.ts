@@ -1,10 +1,10 @@
 // Native views: TEAM (problems, then members) and ACTIVITY (latest commits).
 // All text comes from core's explain layer.
 import {
+  ago,
   explainMyProblem,
   involvesMe,
   memberStatus,
-  shortDuration,
   shortProblemLabel,
   statusBarSummary,
   type MyProblem,
@@ -102,7 +102,7 @@ export class TeamView extends Provider {
         children: branches.map((b) =>
           item(b.branch, {
             iconPath: new vscode.ThemeIcon("git-branch"),
-            description: `+${b.ahead} / -${b.behind} · ${shortDuration(now.getTime() - b.lastSave.getTime())} ago`,
+            description: `+${b.ahead} / -${b.behind} · ${ago(b.lastSave, now)}`,
           }),
         ),
       });
@@ -124,7 +124,7 @@ export class ActivityView extends Provider {
     return this.state.activity.map((entry) =>
       item(`${entry.author} · ${entry.subject}`, {
         iconPath: this.avatars.uri(entry.author),
-        description: `${entry.branch} · ${shortDuration(now.getTime() - entry.date.getTime())} ago`,
+        description: `${entry.branch} · ${ago(entry.date, now)}`,
       }),
     );
   }

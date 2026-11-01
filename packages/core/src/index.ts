@@ -22,6 +22,7 @@ export {
   explainTrackedSecrets,
   explainSyncRefusal,
   explainSyncResult,
+  ago,
   approxAge,
   conflictMessage,
   explainMyProblem,

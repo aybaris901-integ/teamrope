@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import type { Diagnosis } from "./diagnose.js";
 import {
+  ago,
+  approxAge,
   explainDiagnosis,
   explainMyProblem,
   explainSyncRefusal,
@@ -195,6 +197,15 @@ describe("panel text", () => {
     [50 * 60 * 60_000, "2d"],
   ])("shortDuration(%d) = %s", (ms, text) => {
     expect(shortDuration(ms)).toBe(text);
+  });
+
+  test("under a minute is 'just now', never '~<1m'", () => {
+    expect(approxAge(new Date(now.getTime() - 30_000), now)).toBe("just now");
+    expect(approxAge(minutesAgo(20), now)).toBe("~20m");
+    expect(ago(new Date(now.getTime() - 5_000), now)).toBe("just now");
+    expect(ago(minutesAgo(5), now)).toBe("5m ago");
+    const fresh = { ...overlapProblem, file: { ...overlap.files[0]!, since: new Date(now.getTime() - 10_000) } } as MyProblem;
+    expect(explainMyProblem(fresh, now)).toBe("alice also changed src/app.js (lines 2–3) · just now");
   });
 
   test("overlap line and ready message", () => {

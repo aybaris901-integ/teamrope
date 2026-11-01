@@ -730,7 +730,7 @@ export function explainTeamStatus(status: TeamStatus): string[] {
 
 // --- Panel: headline, problems, messages -----------------------------------
 
-/** "45s" is shown as "<1m"; then "15m", "2h", "3d". */
+/** Compact duration: "15m", "2h", "3d" ("<1m" below a minute: display it via ago() or approxAge(), which say "just now"). */
 export function shortDuration(ms: number): string {
   const minutes = Math.floor(ms / 60_000);
   if (minutes < 1) return "<1m";
@@ -740,9 +740,18 @@ export function shortDuration(ms: number): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-/** Age of an overlap or conflict, e.g. "~20m" (based on the oldest commit involved). */
+const MINUTE_MS = 60_000;
+
+/** Age of an overlap or conflict, e.g. "~20m" (oldest commit involved), or "just now". */
 export function approxAge(since: Date, now: Date): string {
-  return `~${shortDuration(now.getTime() - since.getTime())}`;
+  const ms = now.getTime() - since.getTime();
+  return ms < MINUTE_MS ? "just now" : `~${shortDuration(ms)}`;
+}
+
+/** "just now", "5m ago", "2h ago". */
+export function ago(date: Date, now: Date): string {
+  const ms = now.getTime() - date.getTime();
+  return ms < MINUTE_MS ? "just now" : `${shortDuration(ms)} ago`;
 }
 
 /** " (line 2)", " (lines 2–5)", or "" when there are no ranges. */
@@ -930,7 +939,7 @@ export function memberStatus(
     if (p.kind === "farBehind" && mine.has(p.branch)) return `${p.behind} behind ${mainBranch}`;
   }
   const latest = branches.reduce<Date | null>((max, b) => (!max || b.lastSave > max ? b.lastSave : max), null);
-  return latest ? `last shared ${shortDuration(now.getTime() - latest.getTime())} ago` : "nothing shared yet";
+  return latest ? `last shared ${ago(latest, now)}` : "nothing shared yet";
 }
 
 export type StatusBarKind = "conflict" | "toShare" | "sync" | "attention" | "inSync";
