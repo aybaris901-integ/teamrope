@@ -135,11 +135,17 @@ export function shortNextAction(d: Diagnosis): string | null {
   }
 }
 
-export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation {
-  const sentences: string[] = [];
+type DiagnosisTopic = "operation" | "remote" | "branch" | "changes" | "upstream" | "main" | "unpushedMain" | "gitVersion";
+
+/** The diagnosis as sentences, each tagged with what it's about. */
+function diagnosisSentences(d: Diagnosis, mainBranch: string): Array<{ topic: DiagnosisTopic; text: string }> {
+  const sentences: Array<{ topic: DiagnosisTopic; text: string }> = [];
+  const add = (topic: DiagnosisTopic, ...texts: string[]): void => {
+    for (const text of texts) sentences.push({ topic, text });
+  };
 
   if (d.inProgress) {
-    sentences.push(
+    add("operation",
       `You're in the middle of ${OPERATION_DESCRIPTIONS[d.inProgress]}, and Git is waiting for it to be finished or cancelled.`,
       "I won't change anything until it's done.",
     );
@@ -148,36 +154,36 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation
   // Before the rest, because it's all based on possibly old remote data.
   if (d.remoteProblem) {
     const [meaning, whatToDo] = explainRemoteProblem(d.remoteProblem);
-    sentences.push("I couldn't reach the team repo, so the rest may be out of date.", meaning);
+    add("remote", "I couldn't reach the team repo, so the rest may be out of date.", meaning);
     // Only when fixing access is the next step, so there's one suggestion.
-    if (d.nextAction === "fixAccess") sentences.push(whatToDo);
+    if (d.nextAction === "fixAccess") add("remote", whatToDo);
   }
 
   if (d.detached) {
     // A rebase detaches HEAD on purpose; the in-progress sentence covers it.
     if (!d.inProgress) {
-      sentences.push(
+      add("branch",
         `You're not on any branch right now (Git calls this "detached HEAD"), so new work could get lost.`,
       );
     }
   } else if (d.onMain) {
-    sentences.push(`You're on ${mainBranch}, the branch the whole team shares.`);
+    add("branch", `You're on ${mainBranch}, the branch the whole team shares.`);
   } else {
-    sentences.push(`You're on your own branch ${d.currentBranch}.`);
+    add("branch", `You're on your own branch ${d.currentBranch}.`);
   }
 
   const notSharedFiles = d.dirtyFiles.filter((file) => !d.conflictedFiles.includes(file));
   if (d.conflictedFiles.length > 0) {
-    sentences.push(
+    add("changes",
       `You have ${plural(d.conflictedFiles.length, "file")} with conflicts: ${listFiles(d.conflictedFiles)}.`,
     );
     if (notSharedFiles.length > 0) {
-      sentences.push(
+      add("changes",
         `You also have ${plural(notSharedFiles.length, "other changed file")}: ${listFiles(notSharedFiles)}.`,
       );
     }
   } else {
-    sentences.push(
+    add("changes",
       notSharedFiles.length === 0
         ? "You have no changes waiting to be shared."
         : `You have ${plural(notSharedFiles.length, "file")} not shared yet: ${listFiles(notSharedFiles)}.`,
@@ -186,14 +192,14 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation
 
   if (!d.onMain && !d.detached) {
     if (d.aheadOfUpstream === null) {
-      sentences.push("This branch is only on your computer so far.");
+      add("upstream", "This branch is only on your computer so far.");
     } else if (d.aheadOfUpstream > 0) {
-      sentences.push(
+      add("upstream",
         `You have ${plural(d.aheadOfUpstream, "commit")} that only ${d.aheadOfUpstream === 1 ? "exists" : "exist"} on your computer.`,
       );
     }
     if (d.behindUpstream) {
-      sentences.push(
+      add("upstream",
         `The team repo's copy of your branch has ${plural(d.behindUpstream, "commit")} you don't have yet.`,
       );
     }
@@ -202,28 +208,51 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation
   if (!d.canReachRemote) {
     // The comparison would use old data, so say nothing about main.
   } else if (d.behindMain === null) {
-    sentences.push(`I couldn't find the team's ${mainBranch} branch to compare with.`);
+    add("main", `I couldn't find the team's ${mainBranch} branch to compare with.`);
   } else if (d.behindMain > 0) {
-    sentences.push(
+    add("main",
       `${capitalize(mainBranch)} has ${plural(d.behindMain, "new commit")} you don't have yet.`,
     );
   } else if (!d.onMain && !d.inProgress) {
-    sentences.push(`You're up to date with ${mainBranch}.`);
+    add("main", `You're up to date with ${mainBranch}.`);
   }
 
   if (d.unpushedCommitsOnMain) {
-    sentences.push(
+    add("unpushedMain",
       `Your ${mainBranch} has ${plural(d.unpushedCommitsOnMain, "commit")} that ${d.unpushedCommitsOnMain === 1 ? "was" : "were"} never uploaded, so only you have ${them(d.unpushedCommitsOnMain)}.`,
     );
   }
 
   if (!d.supportsMergeTree) {
-    sentences.push(
+    add("gitVersion",
       `Your Git (${d.gitVersion}) is older than 2.38, so conflict checks will be a bit slower.`,
     );
   }
 
-  return { summary: sentences, next: explainNextAction(d) };
+  return sentences;
+}
+
+export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation {
+  return { summary: diagnosisSentences(d, mainBranch).map((s) => s.text), next: explainNextAction(d) };
+}
+
+/** What the panel headline already says for each next step (see primaryReason). */
+const HEADLINE_TOPICS: Record<NonNullable<Diagnosis["nextAction"]> | "none", DiagnosisTopic[]> = {
+  finishOperation: ["operation"],
+  askCaptain: ["branch"],
+  fixAccess: ["remote"],
+  startTask: ["branch", "changes"],
+  save: ["changes"],
+  sync: ["main"],
+  none: ["changes", "main"],
+};
+
+/** The panel's Details: the diagnosis without what the headline already says, and without the next step. */
+export function panelDetails(d: Diagnosis, mainBranch = "main"): string[] {
+  const said = HEADLINE_TOPICS[d.nextAction ?? "none"];
+  return diagnosisSentences(d, mainBranch)
+    .filter((s) => !said.includes(s.topic))
+    .map((s) => s.text);
 }
 
 // --- Start task ------------------------------------------------------------
@@ -814,15 +843,20 @@ function problemNote(problems: MyProblem[], mainBranch: string): [string, Severi
 /**
  * The sentence at the top of the panel: why the primary button is the next
  * step, then the most important problem about me (a conflict or an overlap).
+ * `teamKnown`: Team status loaded, so "no problems" covers everyone's work.
  */
 export function headline(
   d: Diagnosis,
   problems: MyProblem[],
   mainBranch = "main",
+  teamKnown = true,
 ): { severity: Severity; sentence: string } {
   const [reason, reasonSeverity] = primaryReason(d, mainBranch);
   const note = problemNote(problems, mainBranch);
-  if (!note) return { severity: reasonSeverity, sentence: reason };
+  if (!note) {
+    const allClear = d.nextAction === null && problems.length === 0 && teamKnown;
+    return { severity: reasonSeverity, sentence: allClear ? `${reason} Everyone's work fits together.` : reason };
+  }
   const [text, noteSeverity] = note;
   const severity = SEVERITY_RANK[noteSeverity] > SEVERITY_RANK[reasonSeverity] ? noteSeverity : reasonSeverity;
   return { severity, sentence: `${reason} ${text}` };

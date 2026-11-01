@@ -3,10 +3,10 @@
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import {
-  explainDiagnosis,
   explainMyProblem,
   headline,
   involvesMe,
+  panelDetails,
   shortNextAction,
   type MyProblem,
   type Severity,
@@ -21,6 +21,9 @@ interface ButtonModel {
   icon: string;
 }
 
+/** The full-width button under the headline; "secondary" when nothing is urgent. */
+type MainButtonModel = ButtonModel & { style: "primary" | "secondary" };
+
 /** What the page draws. Sent with postMessage; the page never builds text itself. */
 type YouModel =
   | { state: "noFolder" | "noRepo" | "loading" }
@@ -29,7 +32,7 @@ type YouModel =
       state: "ready";
       severity: Severity;
       sentence: string;
-      primary?: ButtonModel;
+      primary?: MainButtonModel;
       secondary: ButtonModel[];
       problems: Array<{ index: number; text: string; kind: MyProblem["kind"]; canCompare: boolean }>;
       details: string[];
@@ -136,27 +139,27 @@ export class YouView implements vscode.WebviewViewProvider {
     if (!d) return { state: "loading" };
 
     const now = new Date();
-    const { severity, sentence } = headline(d, s.problems);
+    const { severity, sentence } = headline(d, s.problems, "main", Boolean(s.team));
     const nextCommand = d.nextAction ? NEXT_COMMANDS[d.nextAction] : undefined;
-    const primary: ButtonModel | undefined = nextCommand
-      ? { label: shortNextAction(d) ?? "", command: nextCommand, icon: "arrow-right" }
+    // In sync: one quiet Start task button; Share and Sync stay in the "…" menu.
+    const primary: MainButtonModel = nextCommand
+      ? { label: shortNextAction(d) ?? "", command: nextCommand, icon: "arrow-right", style: "primary" }
       : d.nextAction
-        ? { label: "What should I do?", command: "branchguard.runNext", icon: "question" }
-        : undefined;
-    const { summary, next } = explainDiagnosis(d);
+        ? { label: "What should I do?", command: "branchguard.runNext", icon: "question", style: "primary" }
+        : { label: "Start task", command: "branchguard.startTask", icon: "add", style: "secondary" };
     return {
       state: "ready",
       severity,
       sentence,
       primary,
-      secondary: ACTIONS.filter((a) => a.command !== primary?.command),
+      secondary: primary.style === "secondary" ? [] : ACTIONS.filter((a) => a.command !== primary.command),
       // Only problems about me; everyone else's live in the Team view.
       problems: s.problems.flatMap((problem, index) =>
         involvesMe(problem, d.currentBranch, s.me)
           ? [{ index, text: explainMyProblem(problem, now), kind: problem.kind, canCompare: Boolean(compareTargetFor(problem)) }]
           : [],
       ),
-      details: [...summary, next],
+      details: panelDetails(d),
     };
   }
 

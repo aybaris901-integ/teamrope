@@ -12,6 +12,7 @@ export {
 export {
   describeStartTaskStep,
   explainDiagnosis,
+  panelDetails,
   explainRemoteProblem,
   explainStartTaskRefusal,
   explainStartTaskResult,

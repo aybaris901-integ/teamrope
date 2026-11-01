@@ -73,11 +73,13 @@
     head.append(icon(SEVERITY_ICONS[model.severity]), el("span", "", model.sentence));
     root.append(head);
 
-    if (model.primary) root.append(button(model.primary, "primary block"));
+    if (model.primary) root.append(button(model.primary, `${model.primary.style} block`));
 
-    const secondary = el("div", "secondary");
-    for (const b of model.secondary) secondary.append(button(b, "small"));
-    root.append(secondary);
+    if (model.secondary.length > 0) {
+      const secondary = el("div", "actions");
+      for (const b of model.secondary) secondary.append(button(b, "small"));
+      root.append(secondary);
+    }
 
     if (model.problems.length > 0) {
       const list = el("ul", "problems");
@@ -97,11 +99,14 @@
       root.append(list);
     }
 
+    if (model.details.length === 0) return;
+    // Collapsed by default; the chevron turns when it opens (you.css).
     const details = el("details", "details");
-    details.append(el("summary", "", "Details"));
+    const summary = el("summary");
+    summary.append(icon("chevron-right"), el("span", "", "Details"));
     const lines = el("ul");
     for (const line of model.details) lines.append(el("li", "", line));
-    details.append(lines);
+    details.append(summary, lines);
     root.append(details);
   }
 

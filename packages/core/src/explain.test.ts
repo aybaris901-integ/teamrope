@@ -4,6 +4,7 @@ import {
   ago,
   approxAge,
   explainDiagnosis,
+  panelDetails,
   explainMyProblem,
   explainSyncRefusal,
   headline,
@@ -234,7 +235,16 @@ describe("panel text", () => {
       sentence: "You're on main with 1 file not shared.",
     });
     expect(headline(shareNext, [])).toEqual({ severity: "info", sentence: "You have 1 file not shared." });
-    expect(headline(base, [])).toEqual({ severity: "ok", sentence: "You're in sync." });
+    expect(headline(base, [])).toEqual({ severity: "ok", sentence: "You're in sync. Everyone's work fits together." });
+    // Without Team status we can't speak for everyone.
+    expect(headline(base, [], "main", false).sentence).toBe("You're in sync.");
+  });
+
+  test("Details never repeat the headline or the next step", () => {
+    expect(panelDetails(base)).toEqual(["You're on your own branch carol/feature."]);
+    const share = { ...base, dirtyFiles: ["src/app.js"], behindMain: 1, nextAction: "save" as const };
+    expect(panelDetails(share)).toEqual(["You're on your own branch carol/feature.", "Main has 1 new commit you don't have yet."]);
+    expect(panelDetails({ ...base, onMain: true, currentBranch: "main", dirtyFiles: ["a.js"], nextAction: "startTask" })).toEqual([]);
   });
 
   test("headline says 'the same line' for a single-line overlap", () => {
