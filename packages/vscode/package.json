@@ -35,16 +35,19 @@
         {
           "id": "branchguard.you",
           "name": "You",
-          "type": "webview"
+          "type": "webview",
+          "initialSize": 3
         },
         {
           "id": "branchguard.team",
           "name": "Team",
-          "visibility": "collapsed"
+          "visibility": "collapsed",
+          "initialSize": 2
         },
         {
           "id": "branchguard.activity",
-          "name": "Activity"
+          "name": "Activity",
+          "initialSize": 1
         }
       ]
     },
