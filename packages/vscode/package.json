@@ -269,7 +269,7 @@
           {
             "id": "team",
             "title": "Watch Team",
-            "description": "Team lists everyone else's problems: conflicts with main, two people changing the same code, and work nobody has shared for a while. Each problem says who should do what, and Copy message gives you a text to send.\n[Open Team](command:branchguard.teamStatus)",
+            "description": "Team lists everyone else's problems: conflicts with main and two people changing the same code. Each problem says who should do what, and Copy message gives you a text to send.\n[Open Team](command:branchguard.teamStatus)",
             "media": {
               "svg": "media/walkthrough/team.svg",
               "altText": "A team list with one problem flagged"

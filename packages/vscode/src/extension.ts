@@ -97,11 +97,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
   );
 
-  // First install: show the walkthrough once.
-  if (!context.globalState.get(WALKTHROUGH_SHOWN)) {
-    await context.globalState.update(WALKTHROUGH_SHOWN, true);
-    void vscode.commands.executeCommand("workbench.action.openWalkthrough", walkthroughId, false);
-  }
+  // First install: show the walkthrough once, in a window the user is looking
+  // at. Activation can run while the window is still restoring (or in another
+  // window, right after install), so the flag is only set once it opened.
+  const showWalkthroughOnce = async (): Promise<void> => {
+    if (context.globalState.get(WALKTHROUGH_SHOWN) || !vscode.window.state.focused) return;
+    try {
+      await vscode.commands.executeCommand("workbench.action.openWalkthrough", walkthroughId, false);
+      await context.globalState.update(WALKTHROUGH_SHOWN, true);
+    } catch (error) {
+      output.log(`Couldn't open the walkthrough: ${errorMessage(error)}`);
+    }
+  };
 
   // Saving a file: refresh without the network, debounced.
   let saveTimer: NodeJS.Timeout | undefined;
@@ -113,7 +120,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     // Coming back to the window: fetch if the last fetch is over 2 minutes old.
     vscode.window.onDidChangeWindowState((window) => {
-      if (window.focused) void state.refresh("auto");
+      if (!window.focused) return;
+      void showWalkthroughOnce();
+      void state.refresh("auto");
     }),
     // Multi-root: switching to a file in another folder switches repos.
     vscode.window.onDidChangeActiveTextEditor(() => {
@@ -128,6 +137,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   await state.refresh("auto");
+  await showWalkthroughOnce();
   if (state.dir && !state.noRepo) await openTeamForCaptain();
 }
 
