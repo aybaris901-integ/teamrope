@@ -130,4 +130,6 @@ export {
   type TheirSide,
   type TheirSideCache,
 } from "./overlaps.js";
+export { conflictLineHint, conflictNotice, overlapHintTitle } from "./explain.js";
+export { overlapHints, overlapNames, type OverlapHint } from "./editor-hints.js";
 export { involvesMe, onePerPerson, problemPeople, problemsForMe, type MyProblem } from "./my-problems.js";

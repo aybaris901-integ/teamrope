@@ -363,6 +363,8 @@ export async function overlapsWithMe(dir: string, options: OverlapOptions = {}):
 export interface MainConflictPreview extends SyncConflict {
   /** Oldest commit involved (on main or mine) touching the file since the split. */
   since: Date;
+  /** The two commits the dry run combined: mine (HEAD) and the team repo's main. */
+  commits: { mine: string; main: string };
 }
 
 /**
@@ -393,6 +395,7 @@ export async function predictMainConflicts(
       authors: await authorsSinceSplit(git, head, target, file),
       hunks,
       since: earliest(mainHistory.get(file)?.oldest ?? null, myHistory.get(file)?.oldest ?? null) ?? new Date(),
+      commits: { mine: head, main: target },
     });
   }
   return conflicts;

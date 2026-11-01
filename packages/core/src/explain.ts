@@ -12,6 +12,8 @@ import { willIgnore, type SavePlan, type SaveResult, type SaveStepData } from ".
 import type { SyncConflict, SyncPlan, SyncResult, SyncStepData } from "./sync.js";
 import type { RemoteBranch, TeamProblem, TeamStatus } from "./team-status.js";
 import type { MyProblem } from "./my-problems.js";
+import type { ConflictHunk } from "./dry-run.js";
+import type { OverlapHint } from "./editor-hints.js";
 import type { FileOverlap, LineRange, MainConflictPreview, OverlapWithMe } from "./overlaps.js";
 import { gitignoreEntry, type RiskyFile, type SecretReason } from "./risky-files.js";
 
@@ -947,4 +949,28 @@ export function statusBarSummary(
   const short = shortNextAction(d);
   if (short) return { kind: "attention", text: `Next: ${short}` };
   return { kind: "inSync", text: "In sync" };
+}
+
+// --- Editor hints -----------------------------------------------------------
+
+const MAX_HINT_TEXT = 60;
+
+/** CodeLens over an overlapping spot: "alice also changed this · ~20m". */
+export function overlapHintTitle(hint: OverlapHint, now: Date): string {
+  return `${listWords(hint.names)} also changed this · ${approxAge(hint.since, now)}`;
+}
+
+/** The conflict notification: "Syncing would conflict in src/config.js (alice)". */
+export function conflictNotice(conflict: MainConflictPreview): string {
+  const who = conflict.authors.length > 0 ? ` (${listWords(conflict.authors)})` : "";
+  return `Syncing would conflict in ${conflict.path}${who}. Talk before your work goes into main.`;
+}
+
+/** Text after a conflicting line: what main has there, e.g. "alice: apiUrl: '/v2'". */
+export function conflictLineHint(conflict: MainConflictPreview, hunk: ConflictHunk, mainBranch = "main"): string {
+  const authors = listWords(conflict.authors);
+  const first = hunk.theirs.find((line) => line.trim() !== "")?.trim();
+  if (!first) return `Removed on ${mainBranch}${authors ? ` by ${authors}` : ""}`;
+  const who = authors || mainBranch;
+  return `${who}: ${first.length > MAX_HINT_TEXT ? `${first.slice(0, MAX_HINT_TEXT - 1)}…` : first}`;
 }

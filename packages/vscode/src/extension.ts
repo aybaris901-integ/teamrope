@@ -6,6 +6,8 @@ import { Avatars } from "./avatars.js";
 import { getGitApi } from "./git-api.js";
 import { BranchguardState } from "./state.js";
 import { createStatusBar } from "./status-bar.js";
+import { watchConflicts } from "./conflict-notice.js";
+import { EditorHints } from "./editor-hints.js";
 import { GIT_SCHEME } from "./problem-actions.js";
 import { errorMessage, Output } from "./ui.js";
 import { ActivityView, TeamView } from "./views.js";
@@ -69,6 +71,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       },
     }),
     createStatusBar(state),
+    new EditorHints(state).register(),
+    watchConflicts(state, context.workspaceState),
   );
 
   /** Every command: errors become a plain message (details in the Output channel). */

@@ -193,6 +193,10 @@ describe("predictMainConflicts", () => {
     git(dir, "fetch", "--quiet");
     const conflicts = await predictMainConflicts(dir);
     expect(conflicts.map((c) => [c.path, c.authors])).toEqual([["src/config.js", ["alice"]]]);
+    expect(conflicts[0]?.commits).toEqual({
+      mine: git(dir, "rev-parse", "HEAD").trim(),
+      main: git(dir, "rev-parse", "origin/main").trim(),
+    });
     expect(conflicts[0]?.hunks[0]?.yours).toEqual(['  apiUrl: "https://hank.example.com",']);
     expect(conflicts[0]?.since).toBeInstanceOf(Date);
     expect(git(dir, "status", "--porcelain")).toBe("");

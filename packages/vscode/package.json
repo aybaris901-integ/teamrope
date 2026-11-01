@@ -183,6 +183,11 @@
     "configuration": {
       "title": "branchguard",
       "properties": {
+        "branchguard.editorHints": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show who else is changing your code in the editor: file badges, a note above lines a teammate also changed, and lines that would conflict with main. The conflict notification still shows when this is off."
+        },
         "branchguard.role": {
           "type": "string",
           "enum": [
