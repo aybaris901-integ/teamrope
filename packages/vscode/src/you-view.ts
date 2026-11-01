@@ -132,7 +132,7 @@ export class YouView implements vscode.WebviewViewProvider {
     if (!d) return { state: "loading" };
 
     const now = new Date();
-    const { severity, sentence } = headline(d, s.problems, s.notSharedSince, now);
+    const { severity, sentence } = headline(d, s.problems);
     const nextCommand = d.nextAction ? NEXT_COMMANDS[d.nextAction] : undefined;
     const primary: ButtonModel | undefined = nextCommand
       ? { label: shortNextAction(d) ?? "", command: nextCommand, icon: "arrow-right" }

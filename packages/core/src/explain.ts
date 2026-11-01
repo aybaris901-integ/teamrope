@@ -755,36 +755,70 @@ function describeLines(ranges: LineRange[]): string {
 
 export type Severity = "error" | "warning" | "info" | "ok";
 
-/** The one sentence at the top of the panel, and how serious it is. */
+const SEVERITY_RANK: Record<Severity, number> = { ok: 0, info: 1, warning: 2, error: 3 };
+
+/** Why the primary button is the next step. */
+function primaryReason(d: Diagnosis, mainBranch: string): [string, Severity] {
+  const files = d.dirtyFiles.length;
+  switch (d.nextAction) {
+    case "finishOperation":
+      return [`You're in the middle of ${OPERATION_DESCRIPTIONS[d.inProgress ?? "merge"]}.`, "error"];
+    case "askCaptain":
+      return ["You're not on any branch right now.", "warning"];
+    case "fixAccess":
+      return ["I can't reach the team repo.", "warning"];
+    case "startTask":
+      return files > 0
+        ? [`You're on ${mainBranch} with ${plural(files, "file")} not shared.`, "info"]
+        : [`You're on ${mainBranch}, the branch the whole team shares.`, "info"];
+    case "save":
+      return [`You have ${plural(files, "file")} not shared.`, "info"];
+    case "sync":
+      return [`${capitalize(mainBranch)} has ${plural(d.behindMain ?? 0, "new commit")} for you.`, "info"];
+    case null:
+      return ["You're in sync.", "ok"];
+  }
+}
+
+/** The most important thing about me that the primary button doesn't fix. */
+function problemNote(problems: MyProblem[], mainBranch: string): [string, Severity] | null {
+  const conflicts = problems.flatMap((p) => (p.kind === "mainConflict" ? [p.conflict] : []));
+  if (conflicts.length > 0) {
+    const authors = [...new Set(conflicts.flatMap((c) => c.authors))];
+    const files = listWords(conflicts.map((c) => c.path));
+    const who = authors.length > 0 ? listWords(authors) : "the team";
+    return [`${files} would conflict with ${mainBranch} — talk to ${who} before syncing.`, "error"];
+  }
+  const overlaps = problems.flatMap((p) => (p.kind === "overlapWithMe" ? [p] : []));
+  if (overlaps.length > 0) {
+    const names = [...new Set(overlaps.flatMap((p) => (p.file.authors.length > 0 ? p.file.authors : [p.overlap.owner])))];
+    const ranges = overlaps.flatMap((p) => p.file.ranges.map((r) => r.mine));
+    const what =
+      ranges.length === 0
+        ? "the same file"
+        : ranges.length === 1 && ranges[0]?.start === ranges[0]?.end
+          ? "the same line"
+          : "the same lines";
+    return [`${listWords(names)} changed ${what} — talk before merging.`, "warning"];
+  }
+  return null;
+}
+
+/**
+ * The sentence at the top of the panel: why the primary button is the next
+ * step, then the most important problem about me (a conflict or an overlap).
+ */
 export function headline(
   d: Diagnosis,
   problems: MyProblem[],
-  notSharedSince: Date | null,
-  now: Date,
   mainBranch = "main",
 ): { severity: Severity; sentence: string } {
-  if (d.inProgress) {
-    return { severity: "error", sentence: `You're in the middle of ${OPERATION_DESCRIPTIONS[d.inProgress]}.` };
-  }
-  const conflict = problems.find((p) => p.kind === "mainConflict");
-  if (conflict?.kind === "mainConflict") {
-    return { severity: "error", sentence: explainMyProblem(conflict, now, mainBranch) };
-  }
-  if (d.detached) return { severity: "warning", sentence: "You're not on any branch right now." };
-  if (!d.canReachRemote) return { severity: "warning", sentence: "I can't reach the team repo." };
-  const overlap = problems.find((p) => p.kind === "overlapWithMe");
-  if (overlap?.kind === "overlapWithMe") {
-    return { severity: "warning", sentence: explainMyProblem(overlap, now, mainBranch) };
-  }
-  if (d.dirtyFiles.length > 0) {
-    const age = notSharedSince ? ` · not shared for ${shortDuration(now.getTime() - notSharedSince.getTime())}` : "";
-    return { severity: "info", sentence: `${plural(d.dirtyFiles.length, "file")} not shared yet${age}` };
-  }
-  if (d.onMain) return { severity: "info", sentence: `You're on ${mainBranch}. Start a task to get your own branch.` };
-  if (d.behindMain) {
-    return { severity: "warning", sentence: `${capitalize(mainBranch)} has ${plural(d.behindMain, "new commit")} for you.` };
-  }
-  return { severity: "ok", sentence: "You're in sync." };
+  const [reason, reasonSeverity] = primaryReason(d, mainBranch);
+  const note = problemNote(problems, mainBranch);
+  if (!note) return { severity: reasonSeverity, sentence: reason };
+  const [text, noteSeverity] = note;
+  const severity = SEVERITY_RANK[noteSeverity] > SEVERITY_RANK[reasonSeverity] ? noteSeverity : reasonSeverity;
+  return { severity, sentence: `${reason} ${text}` };
 }
 
 /** One line for a problem in the panel or the Team view. */

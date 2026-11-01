@@ -203,21 +203,36 @@ describe("panel text", () => {
     );
   });
 
-  test("headline: conflict beats overlap beats not shared beats in sync", () => {
+  test("headline explains the primary button, then the problem about me", () => {
     const conflict: MyProblem = {
       kind: "mainConflict",
       conflict: { path: "src/config.js", authors: ["alice"], hunks: [], since: minutesAgo(60) },
     };
-    expect(headline({ ...base, dirtyFiles: ["a.js"] }, [conflict, overlapProblem], null, now)).toEqual({
+    const shareNext = { ...base, dirtyFiles: ["src/app.js"], nextAction: "save" as const };
+    expect(headline(shareNext, [overlapProblem])).toEqual({
+      severity: "warning",
+      sentence: "You have 1 file not shared. alice changed the same lines — talk before merging.",
+    });
+    expect(headline({ ...base, behindMain: 1, nextAction: "sync" }, [conflict])).toEqual({
       severity: "error",
-      sentence: "Syncing would conflict in src/config.js (alice) · ~1h",
+      sentence: "Main has 1 new commit for you. src/config.js would conflict with main — talk to alice before syncing.",
     });
-    expect(headline({ ...base, dirtyFiles: ["a.js"] }, [overlapProblem], null, now).severity).toBe("warning");
-    expect(headline({ ...base, dirtyFiles: ["a.js"] }, [], minutesAgo(15), now)).toEqual({
+    expect(headline({ ...base, onMain: true, dirtyFiles: ["a.js"], nextAction: "startTask" }, [])).toEqual({
       severity: "info",
-      sentence: "1 file not shared yet · not shared for 15m",
+      sentence: "You're on main with 1 file not shared.",
     });
-    expect(headline(base, [], null, now)).toEqual({ severity: "ok", sentence: "You're in sync." });
+    expect(headline(shareNext, [])).toEqual({ severity: "info", sentence: "You have 1 file not shared." });
+    expect(headline(base, [])).toEqual({ severity: "ok", sentence: "You're in sync." });
+  });
+
+  test("headline says 'the same line' for a single-line overlap", () => {
+    const oneLine: MyProblem = {
+      ...overlapProblem,
+      file: { ...overlap.files[0]!, ranges: [{ mine: { start: 2, end: 2 }, theirs: { start: 2, end: 2 } }] },
+    } as MyProblem;
+    expect(headline({ ...base, dirtyFiles: ["src/app.js"], nextAction: "save" }, [oneLine]).sentence).toBe(
+      "You have 1 file not shared. alice changed the same line — talk before merging.",
+    );
   });
 
   test("messages for team problems address the owner without pronouns", () => {
