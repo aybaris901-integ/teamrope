@@ -1,5 +1,13 @@
+# Ship only what the extension needs at runtime, plus the Marketplace page files.
+# media/demo.gif stays out: the README points at the copy on GitHub.
 **
 !dist/**
-!media/**
+!media/icon.png
+!media/teamrope.svg
+!media/you.css
+!media/you.js
+!media/walkthrough/**
 !package.json
 !README.md
+!CHANGELOG.md
+!LICENSE

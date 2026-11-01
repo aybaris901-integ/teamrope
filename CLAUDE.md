@@ -67,8 +67,8 @@ npm install
 bash scripts/broken-repo.sh   # rebuild test playground
 npm test                      # vitest across workspaces (rebuilds playground first)
 npm run build                 # core + cli (tsc -b), then the extension bundle (esbuild)
-npm run package -w teamrope                                   # build packages/vscode/teamrope-0.0.1.vsix
-code --install-extension packages/vscode/teamrope-0.0.1.vsix --force   # install it locally
+npm run package -w teamrope                                   # build packages/vscode/teamrope-0.1.0.vsix
+code --install-extension packages/vscode/teamrope-0.1.0.vsix --force   # install it locally
 
 Update this section when scripts change.
 

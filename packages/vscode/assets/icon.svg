@@ -1,0 +1,17 @@
+<!-- Source of media/icon.png: rsvg-convert -w 128 -h 128 assets/icon.svg -o media/icon.png -->
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <!-- Around the lower crossing, where the white ring passes over the amber one. -->
+    <clipPath id="lower-crossing"><rect x="52" y="72" width="24" height="24"/></clipPath>
+  </defs>
+  <rect width="128" height="128" rx="26" fill="#134E4A"/>
+  <g fill="none">
+    <circle cx="50" cy="64" r="24" stroke="#F8FAFC" stroke-width="10"/>
+    <circle cx="78" cy="64" r="24" stroke="#134E4A" stroke-width="16"/>
+    <circle cx="78" cy="64" r="24" stroke="#F5B942" stroke-width="10"/>
+    <g clip-path="url(#lower-crossing)">
+      <circle cx="50" cy="64" r="24" stroke="#134E4A" stroke-width="16"/>
+      <circle cx="50" cy="64" r="24" stroke="#F8FAFC" stroke-width="10"/>
+    </g>
+  </g>
+</svg>
