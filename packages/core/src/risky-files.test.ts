@@ -2,7 +2,12 @@ import { mkdirSync, mkdtempSync, rmSync, truncateSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { findRiskyFiles, LARGE_FILE_BYTES, type ChangedFile } from "./risky-files.js";
+import {
+  BINARY_OUTPUT_BYTES,
+  findRiskyFiles,
+  LARGE_FILE_BYTES,
+  type ChangedFile,
+} from "./risky-files.js";
 
 let root = "";
 beforeEach(() => {
@@ -51,15 +56,45 @@ describe("findRiskyFiles", () => {
       file(".venv/bin/python"),
     ];
     expect(findRiskyFiles(root, files)).toEqual([
-      { kind: "generated", path: "node_modules/", fileCount: 2 },
-      { kind: "generated", path: "web/dist/", fileCount: 1 },
-      { kind: "generated", path: ".venv/", fileCount: 1 },
+      { kind: "generated", path: "node_modules/", fileCount: 2, ignoreEntry: "node_modules/" },
+      { kind: "generated", path: "web/dist/", fileCount: 1, ignoreEntry: "web/dist/" },
+      { kind: "generated", path: ".venv/", fileCount: 1, ignoreEntry: ".venv/" },
     ]);
   });
 
   test("a tracked secret is marked as tracked", () => {
     expect(findRiskyFiles(root, [file(".env", "X=1\n", false)])).toEqual([
       { kind: "secret", path: ".env", reason: "fileName", tracked: true },
+    ]);
+  });
+
+  test.each([
+    ["packages/vscode/branchguard-0.0.1.vsix", "*.vsix"],
+    ["release.zip", "*.zip"],
+    ["dist-linux.TAR.GZ", "*.tar.gz"],
+    ["setup.exe", "*.exe"],
+    ["App.dmg", "*.dmg"],
+  ])("new build output %s is generated (ignore %s)", (name, pattern) => {
+    expect(findRiskyFiles(root, [file(name, "small\n")])).toEqual([
+      { kind: "generated", path: name, fileCount: 1, ignoreEntry: pattern },
+    ]);
+  });
+
+  test("a build output that's already tracked isn't flagged", () => {
+    expect(findRiskyFiles(root, [file("docs/sample.zip", "x\n", false)])).toEqual([]);
+  });
+
+  test("a new binary file over 1 MB is generated; text or small binaries aren't", () => {
+    const binary = (name: string, bytes: number): ChangedFile => {
+      const changed = file(name, "");
+      writeFileSync(path.join(root, name), Buffer.alloc(bytes, 0));
+      return changed;
+    };
+    const big = binary("model.bin", BINARY_OUTPUT_BYTES + 1);
+    const small = binary("icon.ico", 4096);
+    const bigText = file("data.csv", "a,b\n".repeat(400_000));
+    expect(findRiskyFiles(root, [big, small, bigText])).toEqual([
+      { kind: "generated", path: "model.bin", fileCount: 1, ignoreEntry: "model.bin" },
     ]);
   });
 

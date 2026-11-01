@@ -71,7 +71,13 @@ export {
   type SaveResult,
   type SaveStep,
 } from "./save.js";
-export { findRiskyFiles, type ChangedFile, type RiskyFile, type SecretReason } from "./risky-files.js";
+export {
+  findRiskyFiles,
+  gitignoreEntry,
+  type ChangedFile,
+  type RiskyFile,
+  type SecretReason,
+} from "./risky-files.js";
 export {
   executeSync,
   planSync,

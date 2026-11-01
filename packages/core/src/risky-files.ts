@@ -1,5 +1,5 @@
-// Finds files that shouldn't go into a commit: secrets, generated folders and
-// very large files. Only reads files, never changes anything.
+// Finds files that shouldn't go into a commit: secrets, generated folders,
+// build outputs and very large files. Only reads files, never changes anything.
 import { openSync, readSync, closeSync, statSync } from "node:fs";
 import path from "node:path";
 
@@ -8,8 +8,12 @@ export type SecretReason = "fileName" | "awsKey" | "githubToken" | "apiKey" | "p
 export type RiskyFile =
   /** `tracked`: already committed before, so it's in the repo history. */
   | { kind: "secret"; path: string; reason: SecretReason; tracked: boolean }
-  /** A folder of generated files, e.g. "node_modules/" or "web/dist/". */
-  | { kind: "generated"; path: string; fileCount: number }
+  /**
+   * Generated files: a folder ("node_modules/", "web/dist/") or one build
+   * output (an archive, installer or large binary). `ignoreEntry` is the
+   * .gitignore line that covers it: the folder, a pattern like "*.vsix", or the path.
+   */
+  | { kind: "generated"; path: string; fileCount: number; ignoreEntry: string }
   | { kind: "large"; path: string; sizeBytes: number };
 
 /** A changed file as Save sees it. Paths are relative to the repo root. */
@@ -23,6 +27,10 @@ export interface ChangedFile {
 }
 
 export const LARGE_FILE_BYTES = 50 * 1024 * 1024;
+/** New binary files over this size count as build outputs. */
+export const BINARY_OUTPUT_BYTES = 1024 * 1024;
+const BINARY_SNIFF_BYTES = 8000;
+const BUILD_OUTPUT_EXTENSIONS = [".vsix", ".zip", ".tar.gz", ".exe", ".dmg"];
 const MAX_SCANNED_BYTES = 1024 * 1024;
 const GENERATED_FOLDERS = new Set(["node_modules", "venv", ".venv", "dist", "build"]);
 
@@ -81,6 +89,28 @@ function generatedFolder(file: string): string | null {
   return index === -1 ? null : `${parts.slice(0, index + 1).join("/")}/`;
 }
 
+/** "app-0.0.1.vsix" -> "*.vsix"; null if it isn't a known build output. */
+function buildOutputPattern(file: string): string | null {
+  const name = path.basename(file).toLowerCase();
+  const extension = BUILD_OUTPUT_EXTENSIONS.find((ext) => name.endsWith(ext));
+  return extension ? `*${extension}` : null;
+}
+
+/** True if the file starts with a NUL byte somewhere, like Git's own binary check. */
+function looksBinary(fullPath: string): boolean {
+  let fd: number | undefined;
+  try {
+    fd = openSync(fullPath, "r");
+    const buffer = Buffer.alloc(BINARY_SNIFF_BYTES);
+    const length = readSync(fd, buffer, 0, BINARY_SNIFF_BYTES, 0);
+    return buffer.subarray(0, length).includes(0);
+  } catch {
+    return false;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
 function fileSize(fullPath: string): number {
   try {
     return statSync(fullPath).size;
@@ -90,9 +120,9 @@ function fileSize(fullPath: string): number {
 }
 
 /**
- * Checks changed files for risks. Only new files count for generated
- * folders: a tracked dist/ was committed on purpose. Files inside a
- * generated folder aren't scanned for secrets.
+ * Checks changed files for risks. Only new files count as generated
+ * (folders and build outputs): a tracked dist/ was committed on purpose.
+ * Files inside a generated folder aren't scanned for secrets.
  */
 export function findRiskyFiles(repoRoot: string, files: ChangedFile[]): RiskyFile[] {
   const risky: RiskyFile[] = [];
@@ -105,10 +135,19 @@ export function findRiskyFiles(repoRoot: string, files: ChangedFile[]): RiskyFil
       generated.set(folder, (generated.get(folder) ?? 0) + 1);
       continue;
     }
+    const pattern = file.untracked ? buildOutputPattern(file.path) : null;
+    if (pattern) {
+      risky.push({ kind: "generated", path: file.path, fileCount: 1, ignoreEntry: pattern });
+      continue;
+    }
     const fullPath = path.join(repoRoot, file.path);
     const size = fileSize(fullPath);
     if (size > LARGE_FILE_BYTES) {
       risky.push({ kind: "large", path: file.path, sizeBytes: size });
+      continue;
+    }
+    if (file.untracked && size > BINARY_OUTPUT_BYTES && looksBinary(fullPath)) {
+      risky.push({ kind: "generated", path: file.path, fileCount: 1, ignoreEntry: file.path });
       continue;
     }
     const reason = secretByContent(fullPath) ?? (secretByName(file.path) ? "fileName" : null);
@@ -116,9 +155,14 @@ export function findRiskyFiles(repoRoot: string, files: ChangedFile[]): RiskyFil
   }
 
   for (const [folder, fileCount] of generated) {
-    risky.push({ kind: "generated", path: folder, fileCount });
+    risky.push({ kind: "generated", path: folder, fileCount, ignoreEntry: folder });
   }
   return risky;
+}
+
+/** The .gitignore line that keeps a risky file out from now on. */
+export function gitignoreEntry(risky: RiskyFile): string {
+  return risky.kind === "generated" ? risky.ignoreEntry : risky.path;
 }
 
 /** True if `file` is covered by a risky entry (a file, or a folder ending in "/"). */

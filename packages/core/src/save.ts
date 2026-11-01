@@ -16,7 +16,13 @@ import {
 } from "./git.js";
 import type { RemoteProblem } from "./remote-problem.js";
 import { cliRemoteOps, type RemoteOps, type RemoteOptions } from "./remote-ops.js";
-import { findRiskyFiles, isCoveredBy, type ChangedFile, type RiskyFile } from "./risky-files.js";
+import {
+  findRiskyFiles,
+  gitignoreEntry,
+  isCoveredBy,
+  type ChangedFile,
+  type RiskyFile,
+} from "./risky-files.js";
 import {
   planStartTask,
   runStartTaskStep,
@@ -131,7 +137,9 @@ function buildSteps(plan: SavePlan): SaveStep[] {
     .filter((step): step is Exclude<StartTaskStep, { kind: "push" }> => step.kind !== "push");
 
   const leftOut = plan.risky.filter((risky) => !plan.choices[risky.path]);
-  const ignoreEntries = leftOut.filter((risky) => willIgnore(plan, risky)).map((r) => r.path);
+  const ignoreEntries = [
+    ...new Set(leftOut.filter((risky) => willIgnore(plan, risky)).map(gitignoreEntry)),
+  ];
   if (ignoreEntries.length > 0) {
     steps.push(withDescription({ kind: "ignore", entries: ignoreEntries }));
   }

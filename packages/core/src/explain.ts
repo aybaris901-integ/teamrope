@@ -11,7 +11,7 @@ import type {
 import { willIgnore, type SavePlan, type SaveResult, type SaveStepData } from "./save.js";
 import type { SyncConflict, SyncPlan, SyncResult, SyncStepData } from "./sync.js";
 import type { RemoteBranch, TeamProblem, TeamStatus } from "./team-status.js";
-import type { RiskyFile, SecretReason } from "./risky-files.js";
+import { gitignoreEntry, type RiskyFile, type SecretReason } from "./risky-files.js";
 
 const MAX_LISTED_FILES = 5;
 
@@ -336,7 +336,9 @@ export function riskyFileReason(risky: RiskyFile): string {
     case "secret":
       return `may be a secret: ${SECRET_REASONS[risky.reason]}`;
     case "generated":
-      return `generated files (${plural(risky.fileCount, "file")}) that don't belong in Git`;
+      return risky.path.endsWith("/")
+        ? `generated files (${plural(risky.fileCount, "file")}) that don't belong in Git`
+        : "a build output (an archive, installer or large binary file) that doesn't belong in Git";
     case "large":
       return `${megabytes(risky.sizeBytes)}, too big for Git`;
   }
@@ -358,7 +360,7 @@ export function riskyFileQuestion(risky: RiskyFile): {
       };
     case "generated":
       return {
-        question: `${risky.path} looks like generated files (${plural(risky.fileCount, "file")}) that don't belong in Git. Leave it out and add it to .gitignore?`,
+        question: `${risky.path} looks like ${riskyFileReason(risky)}. Leave it out and add ${risky.ignoreEntry === risky.path ? "it" : risky.ignoreEntry} to .gitignore?`,
         defaultAnswer: true,
         yesIncludes: false,
       };
@@ -404,7 +406,10 @@ export function explainLeftOutFiles(plan: SavePlan): string[] {
   return plan.risky
     .filter((risky) => !plan.choices[risky.path])
     .map((risky) => {
-      const ignoring = willIgnore(plan, risky) ? " and adding it to .gitignore" : "";
+      const entry = gitignoreEntry(risky);
+      const ignoring = willIgnore(plan, risky)
+        ? ` and adding ${entry === risky.path ? "it" : entry} to .gitignore`
+        : "";
       return risky.kind === "secret"
         ? `Leaving out ${risky.path}${ignoring}: ${SECRET_REASONS[risky.reason]}. It stays on your computer.`
         : `Leaving out ${risky.path}${ignoring}.`;
