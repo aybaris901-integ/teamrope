@@ -36,7 +36,7 @@ const USAGE = `Usage:
                                --name  your name for branch names (skips the question)
                                --yes   don't ask anything, accept the defaults
   branchguard save [-m <message>] [--name <name>] [--yes]
-                               commit your work and upload it to your own branch
+                               share changes: commit your work and upload it to your own branch
                                -m      commit message (default: made from the file names)
                                --yes   accept the defaults: risky files are left out
   branchguard sync [--yes]     bring the latest main into your branch (only if it merges cleanly)
@@ -151,7 +151,7 @@ async function runSave(flags: PromptFlags & { message?: string }): Promise<void>
   }
   plan = await askAboutRiskyFiles(plan, flags.yes);
   if (plan.steps.length === 0) {
-    console.log([...explainSavePlan(plan), "Nothing left to save."].join(" "));
+    console.log([...explainSavePlan(plan), "Nothing left to share."].join(" "));
     return;
   }
 

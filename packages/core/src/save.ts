@@ -88,6 +88,8 @@ export interface SavePlan {
   ignorableSecrets: string[];
   /** Per ignorable secret: false to keep it out of .gitignore. Defaults to true. */
   ignoreChoices: Record<string, boolean>;
+  /** Ordinary files the user chose not to share now; they stay uncommitted. */
+  excludedFiles: string[];
   /** The user's -m message, if any. */
   message: string | null;
   /** The team repo's copy of the branch has commits we don't have: no upload. */
@@ -144,7 +146,11 @@ function buildSteps(plan: SavePlan): SaveStep[] {
     steps.push(withDescription({ kind: "ignore", entries: ignoreEntries }));
   }
 
-  const kept = plan.files.filter((file) => !leftOut.some((risky) => isCoveredBy(file.path, risky)));
+  const kept = plan.files.filter(
+    (file) =>
+      !plan.excludedFiles.includes(file.path) &&
+      !leftOut.some((risky) => isCoveredBy(file.path, risky)),
+  );
   const files = kept.map((file) => file.path);
   const paths = kept.flatMap((file) => (file.from ? [file.path, file.from] : [file.path]));
   if (ignoreEntries.length > 0 && !files.includes(GITIGNORE)) {
@@ -180,18 +186,22 @@ export function isPlainSave(plan: SavePlan): boolean {
 }
 
 /**
- * Applies the user's answers about risky files: `include` per risky path, and
- * `ignore` per left-out secret. Pure: changes nothing on disk.
+ * Applies the user's answers: `include` per risky path, `ignore` per left-out
+ * secret, and optionally which ordinary files to leave out and the message.
+ * Pure: changes nothing on disk.
  */
 export function applySaveChoices(
   plan: SavePlan,
   include: Record<string, boolean>,
   ignore: Record<string, boolean> = {},
+  extra: { excludedFiles?: string[]; message?: string } = {},
 ): SavePlan {
   const next = {
     ...plan,
     choices: { ...plan.choices, ...include },
     ignoreChoices: { ...plan.ignoreChoices, ...ignore },
+    excludedFiles: extra.excludedFiles ?? plan.excludedFiles,
+    message: extra.message?.trim() || plan.message,
   };
   return { ...next, steps: buildSteps(next) };
 }
@@ -241,6 +251,7 @@ export async function planSave(dir: string, options: SaveOptions = {}): Promise<
     choices: {},
     ignorableSecrets: [],
     ignoreChoices: {},
+    excludedFiles: [],
     message: options.message?.trim() || null,
     uploadBlocked: false,
     steps: [],

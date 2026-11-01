@@ -156,7 +156,7 @@ describe("planSave + executeSave", () => {
     const plan = await planSave(pg.clone("alice"));
     expect(plan.nothingToSave).toBe(true);
     expect(plan.canRun).toBe(false);
-    expect(explainSaveRefusal(plan)).toEqual(["Nothing to save, you're all set."]);
+    expect(explainSaveRefusal(plan)).toEqual(["Nothing to share, you're all set."]);
   });
 
   test("frank: refused while the merge is unfinished", async () => {
@@ -212,7 +212,33 @@ describe("planSave + executeSave", () => {
     expect(result.ok).toBe(false);
     expect(result.pushProblem?.kind).toBe("notFoundOrNoAccess");
     expect(git(dir, "log", "-1", "--format=%s")).toBe("Update notes.txt");
-    expect(explainSaveResult(plan, result).join(" ")).toContain("saved only on this computer");
+    expect(explainSaveResult(plan, result).join(" ")).toContain("committed, but only on this computer");
+  });
+});
+
+describe("choosing files and the message", () => {
+  test("an unchecked file stays out and not shared; the message can be replaced", async () => {
+    const dir = pg.clone("carol");
+    writeFileSync(path.join(dir, "TODO.md"), "later\n");
+    const plan = applySaveChoices(await planSave(dir), {}, {}, {
+      excludedFiles: ["TODO.md"],
+      message: "Say hi to the team",
+    });
+    expect(plan.steps.find((s) => s.kind === "commit")).toMatchObject({
+      files: ["src/app.js"],
+      message: "Say hi to the team",
+    });
+    expect(isPlainSave(plan)).toBe(true);
+
+    expect((await executeSave(plan)).ok).toBe(true);
+    expect(git(dir, "log", "-1", "--format=%s")).toBe("Say hi to the team");
+    expect(git(dir, "status", "--porcelain")).toBe("?? TODO.md");
+  });
+
+  test("leaving every file out with nothing to upload leaves no steps", async () => {
+    const dir = pg.clone("carol");
+    const plan = applySaveChoices(await planSave(dir), {}, {}, { excludedFiles: ["src/app.js"] });
+    expect(plan.steps).toEqual([]);
   });
 });
 

@@ -11,6 +11,8 @@ import type {
 import { willIgnore, type SavePlan, type SaveResult, type SaveStepData } from "./save.js";
 import type { SyncConflict, SyncPlan, SyncResult, SyncStepData } from "./sync.js";
 import type { RemoteBranch, TeamProblem, TeamStatus } from "./team-status.js";
+import type { MyProblem } from "./my-problems.js";
+import type { FileOverlap, LineRange, MainConflictPreview, OverlapWithMe } from "./overlaps.js";
 import { gitignoreEntry, type RiskyFile, type SecretReason } from "./risky-files.js";
 
 const MAX_LISTED_FILES = 5;
@@ -103,7 +105,7 @@ function explainNextAction(d: Diagnosis): string {
     case "startTask":
       return "Next: Start task";
     case "save":
-      return "Next: Save";
+      return "Next: Share changes";
     case "sync":
       return "Next: Sync";
     case null:
@@ -117,7 +119,7 @@ export function shortNextAction(d: Diagnosis): string | null {
     case "startTask":
       return "Start task";
     case "save":
-      return "Save";
+      return "Share changes";
     case "sync":
       return "Sync";
     case "finishOperation":
@@ -162,21 +164,21 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation
     sentences.push(`You're on your own branch ${d.currentBranch}.`);
   }
 
-  const unsavedFiles = d.dirtyFiles.filter((file) => !d.conflictedFiles.includes(file));
+  const notSharedFiles = d.dirtyFiles.filter((file) => !d.conflictedFiles.includes(file));
   if (d.conflictedFiles.length > 0) {
     sentences.push(
       `You have ${plural(d.conflictedFiles.length, "file")} with conflicts: ${listFiles(d.conflictedFiles)}.`,
     );
-    if (unsavedFiles.length > 0) {
+    if (notSharedFiles.length > 0) {
       sentences.push(
-        `You also have ${plural(unsavedFiles.length, "other changed file")}: ${listFiles(unsavedFiles)}.`,
+        `You also have ${plural(notSharedFiles.length, "other changed file")}: ${listFiles(notSharedFiles)}.`,
       );
     }
   } else {
     sentences.push(
-      unsavedFiles.length === 0
-        ? "You have no unsaved changes."
-        : `You have ${plural(unsavedFiles.length, "unsaved file")}: ${listFiles(unsavedFiles)}.`,
+      notSharedFiles.length === 0
+        ? "You have no changes waiting to be shared."
+        : `You have ${plural(notSharedFiles.length, "file")} not shared yet: ${listFiles(notSharedFiles)}.`,
     );
   }
 
@@ -226,7 +228,7 @@ export function explainDiagnosis(d: Diagnosis, mainBranch = "main"): Explanation
 
 function describeCarried(files: number, commits: number): string {
   const parts: string[] = [];
-  if (files > 0) parts.push(plural(files, "unsaved file"));
+  if (files > 0) parts.push(plural(files, "changed file"));
   if (commits > 0) parts.push(plural(commits, "commit"));
   return parts.join(" and ");
 }
@@ -256,7 +258,7 @@ export function explainStartTaskRefusal(plan: StartTaskPlan): string[] {
     case "saveFirst":
       return [
         ...summary,
-        `You have unsaved changes on your branch ${plan.diagnosis.currentBranch}. Save first, then start a new task.`,
+        `You have changes on your branch ${plan.diagnosis.currentBranch} that aren't shared yet. Share your changes first, then start a new task.`,
       ];
     case "noMainOnRemote":
       return [
@@ -288,9 +290,9 @@ function explainDoneStep(
       return `Updated your ${plan.mainBranch} to the team's latest ${plan.mainBranch}.`;
     case "push": {
       const create = plan.steps.find((s) => s.kind === "createBranch");
-      const unsaved = create?.kind === "createBranch" ? create.carriedFiles : 0;
-      return unsaved > 0
-        ? `Uploaded ${step.branch} to the team repo. Your unsaved changes are still only on your computer until you Save.`
+      const notShared = create?.kind === "createBranch" ? create.carriedFiles : 0;
+      return notShared > 0
+        ? `Uploaded ${step.branch} to the team repo. Your changes are still only on your computer until you share them.`
         : `Uploaded ${step.branch} to the team repo.`;
     }
   }
@@ -303,7 +305,7 @@ export function explainStartTaskResult(plan: StartTaskPlan, result: StartTaskRes
     const [meaning, whatToDo] = explainRemoteProblem(result.pushProblem);
     lines.push(
       `Your branch ${plan.branch} is safe on your computer, but uploading it failed. ${meaning}`,
-      `${whatToDo} Then Save will upload it.`,
+      `${whatToDo} Then Share changes will upload it.`,
     );
   } else if (result.failedStep) {
     lines.push(
@@ -354,7 +356,7 @@ export function riskyFileQuestion(risky: RiskyFile): {
   switch (risky.kind) {
     case "secret":
       return {
-        question: `${risky.path} may be a secret: ${SECRET_REASONS[risky.reason]}. Include it in the save? Anyone with repo access could see it.`,
+        question: `${risky.path} may be a secret: ${SECRET_REASONS[risky.reason]}. Include it when you share? Anyone with repo access could see it.`,
         defaultAnswer: false,
         yesIncludes: true,
       };
@@ -388,7 +390,7 @@ export function describeSaveStep(step: SaveStepData): string {
     case "ignore":
       return `Add ${describeIgnoreEntries(step.entries)} to .gitignore so Git leaves ${step.entries.length === 1 ? "it" : "them"} out from now on.`;
     case "commit":
-      return `Save ${plural(step.files.length, "file")} as a commit (a snapshot of your work): "${step.message}".`;
+      return `Commit ${plural(step.files.length, "file")} (a snapshot of your work): "${step.message}".`;
     case "upload":
       return `Upload it to ${step.branch} on the team repo.`;
     default:
@@ -418,16 +420,16 @@ export function explainLeftOutFiles(plan: SavePlan): string[] {
 
 /** Why Save won't run, or that there's nothing to do. */
 export function explainSaveRefusal(plan: SavePlan): string[] {
-  if (plan.nothingToSave) return ["Nothing to save, you're all set."];
+  if (plan.nothingToSave) return ["Nothing to share, you're all set."];
   if (plan.refusal === "noIdentity") {
     return [
-      "Git doesn't know your name and email yet, and every save records who made it.",
-      'Run `git config --global user.name "Your Name"` and `git config --global user.email you@example.com`, then Save again.',
+      "Git doesn't know your name and email yet, and every shared change records who made it.",
+      'Run `git config --global user.name "Your Name"` and `git config --global user.email you@example.com`, then share your changes again.',
     ];
   }
   if (plan.startTask && !plan.startTask.canRun) return explainStartTaskRefusal(plan.startTask);
   const { summary, next } = explainDiagnosis(plan.diagnosis, plan.mainBranch);
-  return ["I can't save right now.", ...summary, next];
+  return ["I can't share your changes right now.", ...summary, next];
 }
 
 /** Warnings for secret-looking files that were committed before. Never blocks a save. */
@@ -436,7 +438,7 @@ export function explainTrackedSecrets(plan: SavePlan): string[] {
     .filter((risky) => risky.kind === "secret" && risky.tracked)
     .map(
       (risky) =>
-        `Warning: ${risky.path} is already in the repo history (it was saved before), so anyone with access to the repo may already have the key. Replace the key: make a new one and cancel the old one. Removing the file isn't enough.`,
+        `Warning: ${risky.path} is already in the repo history (it was committed before), so anyone with access to the repo may already have the key. Replace the key: make a new one and cancel the old one. Removing the file isn't enough.`,
     );
 }
 
@@ -445,7 +447,7 @@ export function explainSavePlan(plan: SavePlan): string[] {
   const lines = [...explainTrackedSecrets(plan), ...explainLeftOutFiles(plan)];
   if (plan.uploadBlocked) {
     lines.push(
-      `The team repo's copy of ${plan.branch} has commits you don't have, so I'll save on your computer only. Sync, then Save again to upload.`,
+      `The team repo's copy of ${plan.branch} has commits you don't have, so I'll commit on your computer only. Sync, then share your changes again to upload them.`,
     );
   }
   return lines;
@@ -458,7 +460,7 @@ export function explainSaveResult(plan: SavePlan, result: SaveResult): string[] 
       case "ignore":
         return `Added ${describeIgnoreEntries(step.entries)} to .gitignore.`;
       case "commit":
-        return `Saved ${plural(step.files.length, "file")} as a commit: "${step.message}".`;
+        return `Committed ${plural(step.files.length, "file")}: "${step.message}".`;
       case "upload":
         return `Uploaded your work to ${step.branch} on the team repo.`;
       default:
@@ -469,14 +471,14 @@ export function explainSaveResult(plan: SavePlan, result: SaveResult): string[] 
 
   if (result.pushRejected) {
     lines.push(
-      `Didn't upload: the team repo's copy of ${plan.branch} has commits you don't have.${committed ? " Your work is saved on this computer." : ""}`,
-      "Sync to bring those commits in, then Save again.",
+      `Didn't upload: the team repo's copy of ${plan.branch} has commits you don't have.${committed ? " Your work is committed on this computer." : ""}`,
+      "Sync to bring those commits in, then share your changes again.",
     );
   } else if (result.pushProblem) {
     const [meaning, whatToDo] = explainRemoteProblem(result.pushProblem);
     lines.push(
-      `Your work is saved only on this computer: uploading failed. ${meaning}`,
-      `${whatToDo} Then Save again to upload.`,
+      `Your work is committed, but only on this computer: uploading failed. ${meaning}`,
+      `${whatToDo} Then share your changes again to upload them.`,
     );
   } else if (result.failedStep) {
     lines.push(
@@ -485,7 +487,7 @@ export function explainSaveResult(plan: SavePlan, result: SaveResult): string[] 
     );
   } else if (plan.uploadBlocked && committed) {
     lines.push(
-      `Saved on this computer only, because the team repo's copy of ${plan.branch} has commits you don't have. Sync, then Save again to upload.`,
+      `Committed on this computer only, because the team repo's copy of ${plan.branch} has commits you don't have. Sync, then share your changes again to upload them.`,
     );
   }
   return lines;
@@ -550,7 +552,7 @@ function explainConflicts(plan: SyncPlan): string[] {
   const who = authors.length > 0 ? listWords(authors) : "your team";
   const files = plan.conflicts.length === 1 ? "your file" : "your files";
   lines.push(
-    `Next: agree with ${who} on one version, edit ${files} to match it exactly, Save, then Sync.`,
+    `Next: agree with ${who} on one version, edit ${files} to match it exactly, share your changes, then Sync.`,
   );
   return lines;
 }
@@ -561,7 +563,7 @@ export function explainSyncRefusal(plan: SyncPlan): string[] {
   if (plan.conflicts.length > 0) return explainConflicts(plan);
   switch (plan.refusal) {
     case "saveFirst":
-      return [`You have unsaved changes. Save first, then Sync.`];
+      return ["You have changes that aren't shared yet. Share your changes first, then Sync."];
     case "noIdentity":
       return [
         "Git doesn't know your name and email yet, and a merge records who made it.",
@@ -594,14 +596,14 @@ export function explainSyncResult(plan: SyncPlan, result: SyncResult): string[] 
     );
   } else if (result.pushRejected) {
     lines.push(
-      `Didn't upload: the team repo's copy of ${plan.branch} has commits you don't have. The merge is saved on this computer.`,
+      `Didn't upload: the team repo's copy of ${plan.branch} has commits you don't have. The merge is committed on this computer.`,
       "Ask your captain how to combine the two copies of your branch.",
     );
   } else if (result.pushProblem) {
     const [meaning, whatToDo] = explainRemoteProblem(result.pushProblem);
     lines.push(
-      `The merge is saved only on this computer: uploading failed. ${meaning}`,
-      `${whatToDo} Then Save to upload.`,
+      `The merge is committed, but only on this computer: uploading failed. ${meaning}`,
+      `${whatToDo} Then share your changes to upload it.`,
     );
   } else if (result.failedStep) {
     lines.push(`I stopped before this step: ${result.failedStep.description} Reason: ${reason}`, "Nothing was changed.");
@@ -629,8 +631,8 @@ export function explainTeamProblem(problem: TeamProblem, mainBranch: string): st
       const files = listWords(conflicts.map((c) => c.path));
       const authors = [...new Set(conflicts.flatMap((c) => c.mainAuthors))].filter((a) => a !== owner);
       return authors.length > 0
-        ? `${owner}'s ${branch} would conflict with ${mainBranch} in ${files} (changed on ${mainBranch} by ${listWords(authors)}). ${owner} should agree with ${listWords(authors)} on one version, then Save and Sync.`
-        : `${owner}'s ${branch} would conflict with ${mainBranch} in ${files}. ${owner} should look at what changed on ${mainBranch}, then Save and Sync.`;
+        ? `${owner}'s ${branch} would conflict with ${mainBranch} in ${files} (changed on ${mainBranch} by ${listWords(authors)}). ${owner} should agree with ${listWords(authors)} on one version, then share changes and Sync.`
+        : `${owner}'s ${branch} would conflict with ${mainBranch} in ${files}. ${owner} should look at what changed on ${mainBranch}, then share changes and Sync.`;
     }
     case "overlap": {
       const { branches: [a, b], owners: [ownerA, ownerB], files } = problem.overlap;
@@ -639,7 +641,7 @@ export function explainTeamProblem(problem: TeamProblem, mainBranch: string): st
         : `${ownerA} (${a}) and ${ownerB} (${b}) changed the same part of ${listWords(files)}. They should agree on one version now, before either is merged into ${mainBranch}.`;
     }
     case "noRecentSave":
-      return `${problem.owner} hasn't saved ${problem.branch} for ${problem.hours} h. Ask ${problem.owner} to Save, even if the work isn't finished.`;
+      return `${problem.owner} hasn't shared ${problem.branch} for ${problem.hours} h. Ask ${problem.owner} to share changes, even if the work isn't finished.`;
     case "farBehind":
       return `${problem.owner}'s ${problem.branch} is ${problem.behind} commits behind ${mainBranch}. ${problem.owner} should Sync soon, while it's still easy.`;
   }
@@ -662,7 +664,7 @@ function branchStatusLabel(branch: RemoteBranch, status: TeamStatus): string {
       return `overlaps ${listWords([...new Set(others)])}`;
     }
     case "noRecentSave":
-      return `no save for ${first.hours} h`;
+      return `not shared for ${first.hours} h`;
     case "farBehind":
       return "far behind";
   }
@@ -675,13 +677,13 @@ function formatTable(rows: string[][]): string[] {
   );
 }
 
-export const TEAM_STATUS_FOOTER = "This only shows uploaded work. Ask everyone to Save often.";
+export const TEAM_STATUS_FOOTER = "This only shows shared work. Ask everyone to share changes often.";
 
 /** The table of active branches as aligned text lines, header first. Empty if none. */
 export function teamStatusTable(status: TeamStatus): string[] {
   if (status.branches.length === 0) return [];
   return formatTable([
-    ["who", "branch", "last save", "ahead/behind", "status"],
+    ["who", "branch", "last shared", "ahead/behind", "status"],
     ...status.branches.map((b) => [
       b.owner,
       b.branch,
@@ -692,10 +694,10 @@ export function teamStatusTable(status: TeamStatus): string[] {
   ]);
 }
 
-/** "and 2 old branches (no save for over a day)", or null if there are none. */
+/** "and 2 old branches (not shared for over a day)", or null if there are none. */
 export function explainOldBranches(status: TeamStatus): string | null {
   return status.oldBranches.length > 0
-    ? `and ${plural(status.oldBranches.length, "old branch")} (no save for over a day)`
+    ? `and ${plural(status.oldBranches.length, "old branch")} (not shared for over a day)`
     : null;
 }
 
@@ -718,10 +720,149 @@ export function explainTeamStatus(status: TeamStatus): string[] {
   lines.push("");
 
   const table = teamStatusTable(status);
-  lines.push(...(table.length > 0 ? table : ["Nobody has saved work to the team repo in the last day."]));
+  lines.push(...(table.length > 0 ? table : ["Nobody has shared work in the last day."]));
   const old = explainOldBranches(status);
   if (old) lines.push(old);
 
   lines.push("", TEAM_STATUS_FOOTER);
   return lines;
+}
+
+// --- Panel: headline, problems, messages -----------------------------------
+
+/** "45s" is shown as "<1m"; then "15m", "2h", "3d". */
+export function shortDuration(ms: number): string {
+  const minutes = Math.floor(ms / 60_000);
+  if (minutes < 1) return "<1m";
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+/** Age of an overlap or conflict, e.g. "~20m" (based on the oldest commit involved). */
+export function approxAge(since: Date, now: Date): string {
+  return `~${shortDuration(now.getTime() - since.getTime())}`;
+}
+
+/** " (line 2)", " (lines 2–5)", or "" when there are no ranges. */
+function describeLines(ranges: LineRange[]): string {
+  if (ranges.length === 0) return "";
+  const start = Math.min(...ranges.map((r) => r.start));
+  const end = Math.max(...ranges.map((r) => r.end));
+  return start === end ? ` (line ${start})` : ` (lines ${start}–${end})`;
+}
+
+export type Severity = "error" | "warning" | "info" | "ok";
+
+/** The one sentence at the top of the panel, and how serious it is. */
+export function headline(
+  d: Diagnosis,
+  problems: MyProblem[],
+  notSharedSince: Date | null,
+  now: Date,
+  mainBranch = "main",
+): { severity: Severity; sentence: string } {
+  if (d.inProgress) {
+    return { severity: "error", sentence: `You're in the middle of ${OPERATION_DESCRIPTIONS[d.inProgress]}.` };
+  }
+  const conflict = problems.find((p) => p.kind === "mainConflict");
+  if (conflict?.kind === "mainConflict") {
+    return { severity: "error", sentence: explainMyProblem(conflict, now, mainBranch) };
+  }
+  if (d.detached) return { severity: "warning", sentence: "You're not on any branch right now." };
+  if (!d.canReachRemote) return { severity: "warning", sentence: "I can't reach the team repo." };
+  const overlap = problems.find((p) => p.kind === "overlapWithMe");
+  if (overlap?.kind === "overlapWithMe") {
+    return { severity: "warning", sentence: explainMyProblem(overlap, now, mainBranch) };
+  }
+  if (d.dirtyFiles.length > 0) {
+    const age = notSharedSince ? ` · not shared for ${shortDuration(now.getTime() - notSharedSince.getTime())}` : "";
+    return { severity: "info", sentence: `${plural(d.dirtyFiles.length, "file")} not shared yet${age}` };
+  }
+  if (d.onMain) return { severity: "info", sentence: `You're on ${mainBranch}. Start a task to get your own branch.` };
+  if (d.behindMain) {
+    return { severity: "warning", sentence: `${capitalize(mainBranch)} has ${plural(d.behindMain, "new commit")} for you.` };
+  }
+  return { severity: "ok", sentence: "You're in sync." };
+}
+
+/** One line for a problem in the panel or the Team view. */
+export function explainMyProblem(problem: MyProblem, now: Date, mainBranch = "main"): string {
+  switch (problem.kind) {
+    case "mainConflict": {
+      const { path, authors, since } = problem.conflict;
+      const who = authors.length > 0 ? ` (${listWords(authors)})` : "";
+      return `Syncing would conflict in ${path}${who} · ${approxAge(since, now)}`;
+    }
+    case "overlapWithMe": {
+      const { file, overlap } = problem;
+      return `${listWords(file.authors.length > 0 ? file.authors : [overlap.owner])} also changed ${file.path}${describeLines(file.ranges.map((r) => r.mine))} · ${approxAge(file.since, now)}`;
+    }
+    case "team":
+      return explainTeamProblem(problem.problem, mainBranch);
+  }
+}
+
+/** A ready-to-send chat message about an overlap with me. */
+export function overlapMessage(overlap: OverlapWithMe, file: FileOverlap, myBranch: string): string {
+  const names = file.authors.length > 0 ? file.authors : [overlap.owner];
+  return `Hi ${listWords(names)}, I'm also changing ${file.path}${describeLines(file.ranges.map((r) => r.mine))} on ${myBranch}, and you changed it on ${overlap.branch}. Can we agree who keeps what before either of us merges?`;
+}
+
+/** A ready-to-send chat message about my predicted conflict with main. */
+export function conflictMessage(conflict: MainConflictPreview, myBranch: string, mainBranch = "main"): string {
+  const names = conflict.authors.length > 0 ? listWords(conflict.authors) : "team";
+  return `Hi ${names}, my branch ${myBranch} would conflict with ${mainBranch} in ${conflict.path}: we changed the same lines. Can we agree on one version before I sync?`;
+}
+
+/** A ready-to-send chat message for any problem in the list. */
+export function problemMessage(problem: MyProblem, myBranch: string, mainBranch = "main"): string {
+  switch (problem.kind) {
+    case "mainConflict":
+      return conflictMessage(problem.conflict, myBranch, mainBranch);
+    case "overlapWithMe":
+      return overlapMessage(problem.overlap, problem.file, myBranch);
+    case "team": {
+      const p = problem.problem;
+      switch (p.kind) {
+        case "conflictWithMain": {
+          const files = listWords(p.conflicts.map((c) => c.path));
+          const authors = [...new Set(p.conflicts.flatMap((c) => c.mainAuthors))].filter((a) => a !== p.owner);
+          const withWhom = authors.length > 0 ? ` (changed there by ${listWords(authors)})` : "";
+          return `Hi ${p.owner}, your branch ${p.branch} would conflict with ${mainBranch} in ${files}${withWhom}. Can you agree on one version, then share your changes and Sync?`;
+        }
+        case "overlap": {
+          const { branches: [a, b], owners, files } = p.overlap;
+          return `Hi ${listWords([...new Set(owners)])}, ${a} and ${b} change the same part of ${listWords(files)}. Can you agree on one version before either is merged into ${mainBranch}?`;
+        }
+        case "noRecentSave":
+          return `Hi ${p.owner}, ${p.branch} hasn't been shared for ${p.hours} h. Could you share your changes, even if they aren't finished?`;
+        case "farBehind":
+          return `Hi ${p.owner}, ${p.branch} is ${p.behind} commits behind ${mainBranch}. Could you Sync soon, while it's still easy?`;
+      }
+    }
+  }
+}
+
+/** Short status of a team member for the Team view, most urgent first. */
+export function memberStatus(
+  owner: string,
+  branches: RemoteBranch[],
+  problems: MyProblem[],
+  now: Date,
+  mainBranch = "main",
+): string {
+  const overlap = problems.find((p) => p.kind === "overlapWithMe" && p.overlap.owner === owner);
+  if (overlap?.kind === "overlapWithMe") return `overlaps you · ${approxAge(overlap.file.since, now)}`;
+  const team = problems.flatMap((p) => (p.kind === "team" ? [p.problem] : []));
+  const mine = new Set(branches.map((b) => b.branch));
+  for (const p of team) {
+    if (p.kind === "conflictWithMain" && mine.has(p.branch)) return `conflict with ${mainBranch}`;
+    if (p.kind === "overlap" && p.overlap.branches.some((b) => mine.has(b))) return "overlaps a teammate";
+    if (p.kind === "noRecentSave" && mine.has(p.branch)) return `not shared for ${p.hours} h`;
+    if (p.kind === "farBehind" && mine.has(p.branch)) return `${p.behind} behind ${mainBranch}`;
+  }
+  const latest = branches.reduce<Date | null>((max, b) => (!max || b.lastSave > max ? b.lastSave : max), null);
+  return latest ? `last shared ${shortDuration(now.getTime() - latest.getTime())} ago` : "nothing shared yet";
 }

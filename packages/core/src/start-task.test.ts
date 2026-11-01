@@ -132,7 +132,7 @@ describe("planStartTask + executeStartTask", () => {
     expect(plan.canRun).toBe(false);
     expect(plan.refusal).toBe("saveFirst");
     expect(plan.steps).toEqual([]);
-    expect(explainStartTaskRefusal(plan).join(" ")).toContain("Save first");
+    expect(explainStartTaskRefusal(plan).join(" ")).toContain("Share your changes first");
   });
 
   test("eve: refused, fix access", async () => {

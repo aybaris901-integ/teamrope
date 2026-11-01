@@ -90,8 +90,8 @@ describe("teamStatus", () => {
     expect(status.oldBranches.map((b) => b.branch)).toEqual(["pat/old-idea"]);
     expect(status.branches.map((b) => b.branch)).not.toContain("pat/old-idea");
     const text = explainTeamStatus(status);
-    expect(text).toContain("and 1 old branch (no save for over a day)");
-    expect(text.join("\n")).toContain("olive hasn't saved olive/idea for 3 h.");
+    expect(text).toContain("and 1 old branch (not shared for over a day)");
+    expect(text.join("\n")).toContain("olive hasn't shared olive/idea for 3 h.");
   });
 
   test("a branch far behind main is flagged", async () => {
@@ -126,7 +126,7 @@ describe("teamStatus", () => {
     const text = explainTeamStatus(status);
     expect(text[0]).toBe("No problems. Everyone's work combines cleanly.");
     expect(text.join("\n")).toMatch(/solo\s+solo\/idea\s+just now\s+\+1 \/ -0\s+ok/);
-    expect(text.at(-1)).toBe("This only shows uploaded work. Ask everyone to Save often.");
+    expect(text.at(-1)).toBe("This only shows shared work. Ask everyone to share changes often.");
   });
 
   test("the worktree fallback finds the same conflicts", async () => {

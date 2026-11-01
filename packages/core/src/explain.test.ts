@@ -1,6 +1,16 @@
 import { describe, expect, test } from "vitest";
 import type { Diagnosis } from "./diagnose.js";
-import { explainDiagnosis, explainSyncRefusal } from "./explain.js";
+import {
+  explainDiagnosis,
+  explainMyProblem,
+  explainSyncRefusal,
+  headline,
+  overlapMessage,
+  problemMessage,
+  shortDuration,
+} from "./explain.js";
+import type { MyProblem } from "./my-problems.js";
+import type { OverlapWithMe } from "./overlaps.js";
 import type { SyncPlan } from "./sync.js";
 
 const base: Diagnosis = {
@@ -155,7 +165,68 @@ describe("explainSyncRefusal with conflicts", () => {
     expect(text).toContain("  The version on main:");
     expect(text).toContain("    (nothing: these lines were removed)");
     expect(text.at(-1)).toBe(
-      "Next: agree with alice and bob on one version, edit your files to match it exactly, Save, then Sync.",
+      "Next: agree with alice and bob on one version, edit your files to match it exactly, share your changes, then Sync.",
+    );
+  });
+});
+
+describe("panel text", () => {
+  const now = new Date("2026-11-01T12:00:00Z");
+  const minutesAgo = (m: number) => new Date(now.getTime() - m * 60_000);
+  const overlap: OverlapWithMe = {
+    branch: "alice/feature",
+    owner: "alice",
+    files: [
+      {
+        path: "src/app.js",
+        ranges: [{ mine: { start: 2, end: 3 }, theirs: { start: 2, end: 2 } }],
+        authors: ["alice"],
+        since: minutesAgo(20),
+      },
+    ],
+  };
+  const overlapProblem: MyProblem = { kind: "overlapWithMe", overlap, file: overlap.files[0]! };
+
+  test.each([
+    [30_000, "<1m"],
+    [15 * 60_000, "15m"],
+    [2 * 60 * 60_000, "2h"],
+    [50 * 60 * 60_000, "2d"],
+  ])("shortDuration(%d) = %s", (ms, text) => {
+    expect(shortDuration(ms)).toBe(text);
+  });
+
+  test("overlap line and ready message", () => {
+    expect(explainMyProblem(overlapProblem, now)).toBe("alice also changed src/app.js (lines 2–3) · ~20m");
+    expect(overlapMessage(overlap, overlap.files[0]!, "carol/feature")).toBe(
+      "Hi alice, I'm also changing src/app.js (lines 2–3) on carol/feature, and you changed it on alice/feature. Can we agree who keeps what before either of us merges?",
+    );
+  });
+
+  test("headline: conflict beats overlap beats not shared beats in sync", () => {
+    const conflict: MyProblem = {
+      kind: "mainConflict",
+      conflict: { path: "src/config.js", authors: ["alice"], hunks: [], since: minutesAgo(60) },
+    };
+    expect(headline({ ...base, dirtyFiles: ["a.js"] }, [conflict, overlapProblem], null, now)).toEqual({
+      severity: "error",
+      sentence: "Syncing would conflict in src/config.js (alice) · ~1h",
+    });
+    expect(headline({ ...base, dirtyFiles: ["a.js"] }, [overlapProblem], null, now).severity).toBe("warning");
+    expect(headline({ ...base, dirtyFiles: ["a.js"] }, [], minutesAgo(15), now)).toEqual({
+      severity: "info",
+      sentence: "1 file not shared yet · not shared for 15m",
+    });
+    expect(headline(base, [], null, now)).toEqual({ severity: "ok", sentence: "You're in sync." });
+  });
+
+  test("messages for team problems address the owner without pronouns", () => {
+    const text = problemMessage(
+      { kind: "team", problem: { kind: "noRecentSave", branch: "olive/idea", owner: "olive", hours: 3 } },
+      "carol/feature",
+    );
+    expect(text).toBe(
+      "Hi olive, olive/idea hasn't been shared for 3 h. Could you share your changes, even if they aren't finished?",
     );
   });
 });

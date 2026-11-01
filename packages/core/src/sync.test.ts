@@ -59,7 +59,7 @@ describe("planSync + executeSync", () => {
   test("carol with unsaved changes: refused, save first", async () => {
     const plan = await planSync(pg.clone("carol"));
     expect(plan.refusal).toBe("saveFirst");
-    expect(explainSyncRefusal(plan)).toEqual(["You have unsaved changes. Save first, then Sync."]);
+    expect(explainSyncRefusal(plan)).toEqual(["You have changes that aren't shared yet. Share your changes first, then Sync."]);
   });
 
   test("hank: conflict predicted, nothing changed, names who changed the file", async () => {
@@ -89,7 +89,7 @@ describe("planSync + executeSync", () => {
     expect(text).toContain("  alice's version on main:");
     expect(text).toContain('      apiUrl: "http://localhost:3000",');
     expect(text.at(-1)).toBe(
-      "Next: agree with alice on one version, edit your file to match it exactly, Save, then Sync.",
+      "Next: agree with alice on one version, edit your file to match it exactly, share your changes, then Sync.",
     );
   });
 
