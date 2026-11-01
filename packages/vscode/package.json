@@ -6,6 +6,7 @@
   "publisher": "teamrope-dev",
   "license": "MIT",
   "icon": "media/icon.png",
+  "homepage": "https://teamrope.site",
   "galleryBanner": {
     "color": "#134E4A",
     "theme": "dark"

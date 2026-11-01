@@ -1,5 +1,7 @@
 # TeamRope
 
+**Website: [teamrope.site](https://teamrope.site)**
+
 **Git safety for hackathon teams: four buttons that keep everyone off main, out of each other's way and out of merge trouble before the deadline.**
 
 ![TeamRope in action](packages/vscode/media/demo.gif)

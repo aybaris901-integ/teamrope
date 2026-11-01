@@ -1,5 +1,7 @@
 # TeamRope
 
+**Website: [teamrope.site](https://teamrope.site)**
+
 **Git safety for hackathon teams: four buttons that keep everyone off main, out of each other's way and out of merge trouble before the deadline.**
 
 Beginners on a hackathon team get lost in branches, commit straight to main and are afraid of merge conflicts. Then the final merge breaks an hour before submission, and the one person who knows Git spends that hour fixing everyone else's repo. Generic advice doesn't help, because it can't see your repo. TeamRope can: it looks at your real branches and your team's, and tells each person what to do next in plain English.
