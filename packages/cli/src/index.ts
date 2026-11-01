@@ -39,7 +39,7 @@ const USAGE = `Usage:
                                share changes: commit your work and upload it to your own branch
                                -m      commit message (default: made from the file names)
                                --yes   accept the defaults: risky files are left out
-  branchguard sync [--yes]     bring the latest main into your branch (only if it merges cleanly)
+  branchguard sync [--yes]     bring the latest main into your branch (only if it combines cleanly)
   branchguard status [dir]     the whole team: who's where, and whose work would conflict`;
 
 async function runDiagnose(dirArg: string | undefined): Promise<void> {

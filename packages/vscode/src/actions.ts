@@ -130,7 +130,7 @@ export class Actions {
     const ctx = this.requireRepo();
     if (!ctx) return;
     const options = { remoteOps: ctx.remoteOps };
-    const plan = await withProgress("Checking whether main merges cleanly…", () =>
+    const plan = await withProgress("Checking whether main combines cleanly with your work…", () =>
       planSync(ctx.dir, options),
     );
     if (!plan.canRun) {

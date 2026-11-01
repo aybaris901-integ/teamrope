@@ -257,7 +257,7 @@
           {
             "id": "sync",
             "title": "An hour before the deadline: Sync",
-            "description": "Sync brings the latest main into your branch, but only if it merges cleanly. Doing it early means conflicts show up while there's still time to fix them.\n[Sync](command:branchguard.sync)",
+            "description": "Sync brings the latest main into your branch, but only if it combines cleanly with your work. Doing it early means conflicts show up while there's still time to fix them.\n[Sync](command:branchguard.sync)",
             "media": {
               "svg": "media/walkthrough/sync.svg",
               "altText": "A clock before the deadline and two lines merging"

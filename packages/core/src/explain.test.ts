@@ -211,7 +211,7 @@ describe("panel text", () => {
   test("overlap line and ready message", () => {
     expect(explainMyProblem(overlapProblem, now)).toBe("alice also changed src/app.js (lines 2–3) · ~20m");
     expect(overlapMessage(overlap, overlap.files[0]!, "carol/feature")).toBe(
-      "Hi alice, I'm also changing src/app.js (lines 2–3) on carol/feature, and you changed it on alice/feature. Can we agree who keeps what before either of us merges?",
+      "Hi alice, I'm also changing src/app.js (lines 2–3) on carol/feature, and you changed it on alice/feature. Can we agree who keeps what before either of our changes goes into main?",
     );
   });
 
@@ -223,7 +223,7 @@ describe("panel text", () => {
     const shareNext = { ...base, dirtyFiles: ["src/app.js"], nextAction: "save" as const };
     expect(headline(shareNext, [overlapProblem])).toEqual({
       severity: "warning",
-      sentence: "You have 1 file not shared. alice changed the same lines — talk before merging.",
+      sentence: "You have 1 file not shared. alice changed the same lines — talk before your work goes into main.",
     });
     expect(headline({ ...base, behindMain: 1, nextAction: "sync" }, [conflict])).toEqual({
       severity: "error",
@@ -243,7 +243,7 @@ describe("panel text", () => {
       file: { ...overlap.files[0]!, ranges: [{ mine: { start: 2, end: 2 }, theirs: { start: 2, end: 2 } }] },
     } as MyProblem;
     expect(headline({ ...base, dirtyFiles: ["src/app.js"], nextAction: "save" }, [oneLine]).sentence).toBe(
-      "You have 1 file not shared. alice changed the same line — talk before merging.",
+      "You have 1 file not shared. alice changed the same line — talk before your work goes into main.",
     );
   });
 

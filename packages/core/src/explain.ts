@@ -637,8 +637,8 @@ export function explainTeamProblem(problem: TeamProblem, mainBranch: string): st
     case "overlap": {
       const { branches: [a, b], owners: [ownerA, ownerB], files } = problem.overlap;
       return ownerA === ownerB
-        ? `${ownerA}'s ${a} and ${b} change the same part of ${listWords(files)}. ${ownerA} should settle on one version before either is merged into ${mainBranch}.`
-        : `${ownerA} (${a}) and ${ownerB} (${b}) changed the same part of ${listWords(files)}. They should agree on one version now, before either is merged into ${mainBranch}.`;
+        ? `${ownerA}'s ${a} and ${b} change the same part of ${listWords(files)}. ${ownerA} should settle on one version before either goes into ${mainBranch}.`
+        : `${ownerA} (${a}) and ${ownerB} (${b}) changed the same part of ${listWords(files)}. They should agree on one version now, before either one's work goes into ${mainBranch}.`;
     }
     case "farBehind":
       return `${problem.owner}'s ${problem.branch} is ${problem.behind} commits behind ${mainBranch}. ${problem.owner} should Sync soon, while it's still easy.`;
@@ -804,7 +804,7 @@ function problemNote(problems: MyProblem[], mainBranch: string): [string, Severi
         : ranges.length === 1 && ranges[0]?.start === ranges[0]?.end
           ? "the same line"
           : "the same lines";
-    return [`${listWords(names)} changed ${what} — talk before merging.`, "warning"];
+    return [`${listWords(names)} changed ${what} — talk before your work goes into ${mainBranch}.`, "warning"];
   }
   return null;
 }
@@ -876,7 +876,7 @@ export function explainMyProblem(problem: MyProblem, now: Date, mainBranch = "ma
 /** A ready-to-send chat message about an overlap with me. */
 export function overlapMessage(overlap: OverlapWithMe, file: FileOverlap, myBranch: string): string {
   const names = file.authors.length > 0 ? file.authors : [overlap.owner];
-  return `Hi ${listWords(names)}, I'm also changing ${file.path}${describeLines(file.ranges.map((r) => r.mine))} on ${myBranch}, and you changed it on ${overlap.branch}. Can we agree who keeps what before either of us merges?`;
+  return `Hi ${listWords(names)}, I'm also changing ${file.path}${describeLines(file.ranges.map((r) => r.mine))} on ${myBranch}, and you changed it on ${overlap.branch}. Can we agree who keeps what before either of our changes goes into main?`;
 }
 
 /** A ready-to-send chat message about my predicted conflict with main. */
@@ -903,7 +903,7 @@ export function problemMessage(problem: MyProblem, myBranch: string, mainBranch 
         }
         case "overlap": {
           const { branches: [a, b], owners, files } = p.overlap;
-          return `Hi ${listWords([...new Set(owners)])}, ${a} and ${b} change the same part of ${listWords(files)}. Can you agree on one version before either is merged into ${mainBranch}?`;
+          return `Hi ${listWords([...new Set(owners)])}, ${a} and ${b} change the same part of ${listWords(files)}. Can you agree on one version before either goes into ${mainBranch}?`;
         }
         case "farBehind":
           return `Hi ${p.owner}, ${p.branch} is ${p.behind} commits behind ${mainBranch}. Could you Sync soon, while it's still easy?`;
