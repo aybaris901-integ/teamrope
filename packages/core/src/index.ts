@@ -63,6 +63,7 @@ export {
   applySaveChoices,
   commitMessageFor,
   executeSave,
+  isPlainSave,
   planSave,
   type SaveOptions,
   type SavePlan,

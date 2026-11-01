@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { copyPlayground, git, type PlaygroundCopy } from "../test/playground-copy.js";
 import { explainSavePlan, explainSaveRefusal, explainSaveResult } from "./explain.js";
-import { applySaveChoices, commitMessageFor, executeSave, planSave } from "./save.js";
+import { applySaveChoices, commitMessageFor, executeSave, isPlainSave, planSave } from "./save.js";
 
 let pg: PlaygroundCopy;
 beforeEach(() => {
@@ -193,6 +193,31 @@ describe("planSave + executeSave", () => {
     expect(result.pushProblem?.kind).toBe("notFoundOrNoAccess");
     expect(git(dir, "log", "-1", "--format=%s")).toBe("Update notes.txt");
     expect(explainSaveResult(plan, result).join(" ")).toContain("saved only on this computer");
+  });
+});
+
+describe("isPlainSave", () => {
+  test("carol: commit + upload to her branch that's already on the team repo", async () => {
+    expect(isPlainSave(await planSave(pg.clone("carol")))).toBe(true);
+  });
+
+  test("a branch that was never uploaded needs confirming", async () => {
+    const dir = pg.clone("carol");
+    git(dir, "branch", "--unset-upstream");
+    expect(isPlainSave(await planSave(dir))).toBe(false);
+  });
+
+  test("a clean branch that was never uploaded (upload only) needs confirming", async () => {
+    const dir = pg.clone("alice");
+    git(dir, "switch", "--quiet", "-c", "alice/new");
+    const plan = await planSave(dir);
+    expect(plan.steps.map((step) => step.kind)).toEqual(["upload"]);
+    expect(isPlainSave(plan)).toBe(false);
+  });
+
+  test("risky files or saving from main need confirming", async () => {
+    expect(isPlainSave(await planSave(pg.clone("gina")))).toBe(false);
+    expect(isPlainSave(await planSave(pg.clone("dave")))).toBe(false);
   });
 });
 

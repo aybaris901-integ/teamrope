@@ -157,6 +157,21 @@ function buildSteps(plan: SavePlan): SaveStep[] {
 }
 
 /**
+ * True for an everyday save a UI may run without asking: commit and upload to
+ * the member's own branch that's already on the team repo, no risky files.
+ * Anything else (first upload, new branch, risky files) should be confirmed.
+ */
+export function isPlainSave(plan: SavePlan): boolean {
+  return (
+    plan.canRun &&
+    plan.startTask === null &&
+    plan.risky.length === 0 &&
+    plan.diagnosis.aheadOfUpstream !== null && // has an upstream: not a first upload
+    plan.steps.every((step) => step.kind === "commit" || step.kind === "upload")
+  );
+}
+
+/**
  * Applies the user's answers about risky files: `include` per risky path, and
  * `ignore` per left-out secret. Pure: changes nothing on disk.
  */

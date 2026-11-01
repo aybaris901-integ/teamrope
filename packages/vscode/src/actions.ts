@@ -12,6 +12,7 @@ import {
   explainSyncRefusal,
   explainSyncResult,
   explainTeamStatus,
+  isPlainSave,
   planSave,
   planStartTask,
   planSync,
@@ -100,13 +101,9 @@ export class Actions {
       return showExplanation(this.output, "Save", [...notes, "Nothing left to save."], "info");
     }
 
-    // A plain save (commit + upload to their own branch) runs without a dialog.
-    const plain =
-      !plan.startTask &&
-      plan.risky.length === 0 &&
-      plan.steps.every((step) => step.kind === "commit" || step.kind === "upload");
+    // An everyday save to a branch already on the team repo runs without a dialog.
     const steps = plan.steps.map((step) => step.description);
-    if (!plain && !(await confirmPlan("Save: here's what I'll do", steps, notes))) return;
+    if (!isPlainSave(plan) && !(await confirmPlan("Save: here's what I'll do", steps, notes))) return;
 
     const ready = plan;
     const result = await withProgress("Saving…", () => executeSave(ready, options));
