@@ -46,6 +46,8 @@ interface Hunk {
   oldCount: number;
   newStart: number;
   newCount: number;
+  /** The hunk's "-" and "+" lines, to tell identical changes apart from different ones. */
+  body: string;
 }
 
 interface SideOfFile {
@@ -84,7 +86,26 @@ export function parseDiffHunks(diff: string): Map<string, Hunk[]> {
   const files = new Map<string, Hunk[]>();
   let oldPath: string | null = null;
   let current: Hunk[] | null = null;
+  // Inside a hunk, read exactly the announced number of lines, so content
+  // like "--- x" is never mistaken for a file header.
+  let hunk: Hunk | null = null;
+  let oldLeft = 0;
+  let newLeft = 0;
+  const body: string[] = [];
+  const finishHunk = (): void => {
+    if (hunk) hunk.body = body.join("\n");
+    hunk = null;
+    body.length = 0;
+  };
   for (const line of diff.split("\n")) {
+    if (hunk && (oldLeft > 0 || newLeft > 0)) {
+      if (line.startsWith("-")) oldLeft--;
+      else if (line.startsWith("+")) newLeft--;
+      if (!line.startsWith("\\")) body.push(line); // skip "\ No newline at end of file"
+      if (oldLeft <= 0 && newLeft <= 0) finishHunk();
+      continue;
+    }
+    finishHunk();
     if (line.startsWith("--- ")) {
       oldPath = line === "--- /dev/null" ? null : line.slice("--- a/".length);
     } else if (line.startsWith("+++ ")) {
@@ -97,16 +118,42 @@ export function parseDiffHunks(diff: string): Map<string, Hunk[]> {
     } else if (line.startsWith("@@") && current) {
       const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(line);
       if (match) {
-        current.push({
+        hunk = {
           oldStart: Number(match[1]),
           oldCount: match[2] === undefined ? 1 : Number(match[2]),
           newStart: Number(match[3]),
           newCount: match[4] === undefined ? 1 : Number(match[4]),
-        });
+          body: "",
+        };
+        current.push(hunk);
+        oldLeft = hunk.oldCount;
+        newLeft = hunk.newCount;
       }
     }
   }
+  finishHunk();
   return files;
+}
+
+/** Their hunks minus the ones main made too (same place, same lines): those came from main. */
+export function withoutMainHunks(
+  theirs: Map<string, Hunk[]>,
+  main: Map<string, Hunk[]>,
+): Map<string, Hunk[]> {
+  const same = (a: Hunk, b: Hunk): boolean =>
+    a.oldStart === b.oldStart && a.oldCount === b.oldCount && a.body === b.body;
+  const result = new Map<string, Hunk[]>();
+  for (const [file, hunks] of theirs) {
+    // A binary file has no hunks: drop it only if main changed it too.
+    if (hunks.length === 0) {
+      if (!main.has(file)) result.set(file, hunks);
+      continue;
+    }
+    const mainHunks = main.get(file) ?? [];
+    const own = hunks.filter((h) => !mainHunks.some((m) => same(h, m)));
+    if (own.length > 0) result.set(file, own);
+  }
+  return result;
 }
 
 /** A hunk's span in base coordinates; a pure insertion sits at its line. */
@@ -139,7 +186,7 @@ export function overlappingRanges(mine: Hunk[], theirs: Hunk[]): OverlapRange[] 
 /** Commit authors and the oldest commit date per file in `range` (e.g. "base..sha"). */
 async function historyPerFile(
   git: SimpleGit,
-  range: string,
+  ...revs: string[]
 ): Promise<Map<string, { authors: string[]; oldest: Date }>> {
   const log = await git.raw([
     "-c",
@@ -148,7 +195,7 @@ async function historyPerFile(
     "--no-renames",
     "--format=%x00%an%x09%ct",
     "--name-only",
-    range,
+    ...revs,
   ]);
   const files = new Map<string, { authors: string[]; oldest: Date }>();
   for (const entry of log.split("\0").filter(Boolean)) {
@@ -168,9 +215,19 @@ async function historyPerFile(
   return files;
 }
 
-async function computeTheirSide(git: SimpleGit, base: string, theirs: string): Promise<TheirSide> {
-  const hunks = parseDiffHunks(await git.raw([...DIFF_ARGS, base, theirs]));
-  const history = await historyPerFile(git, `${base}..${theirs}`);
+/**
+ * Their own changes since `base`: hunks that main also has (because they
+ * branched from a newer main) are left out, and so are main's commits.
+ */
+async function computeTheirSide(
+  git: SimpleGit,
+  base: string,
+  theirs: string,
+  main: string | null,
+): Promise<TheirSide> {
+  const all = parseDiffHunks(await git.raw([...DIFF_ARGS, base, theirs]));
+  const hunks = main ? withoutMainHunks(all, parseDiffHunks(await git.raw([...DIFF_ARGS, base, main]))) : all;
+  const history = await historyPerFile(git, theirs, `^${base}`, ...(main ? [`^${main}`] : []));
   const files = new Map<string, SideOfFile>();
   for (const [file, fileHunks] of hunks) {
     const h = history.get(file);
@@ -189,7 +246,11 @@ async function computeMySide(git: SimpleGit, base: string, untracked: string[]):
   }
   for (const file of untracked) {
     // A new file: everything in it is mine, at the very start of base's (empty) version.
-    files.set(file, { hunks: [{ oldStart: 0, oldCount: 0, newStart: 1, newCount: 1 }], authors: [], oldest: null });
+    files.set(file, {
+      hunks: [{ oldStart: 0, oldCount: 0, newStart: 1, newCount: 1, body: "" }],
+      authors: [],
+      oldest: null,
+    });
   }
   return { files };
 }
@@ -252,6 +313,7 @@ export async function overlapsWithMe(dir: string, options: OverlapOptions = {}):
   const { saved, suggestion } = await readMemberName(dir);
   const me = saved ?? suggestion;
   const upstream = await upstreamBranch(git);
+  const main = await resolveRef(git, `${REMOTE_PREFIX}${mainBranch}`);
   const untracked = await untrackedFiles(git);
   const mySides = new Map<string, TheirSide>(); // per base, within this call
 
@@ -268,10 +330,11 @@ export async function overlapsWithMe(dir: string, options: OverlapOptions = {}):
       continue; // no common history
     }
 
-    const key = `${ref.sha}:${base}`;
+    // Their side also depends on main (its hunks are left out).
+    const key = `${ref.sha}:${base}:${main ?? ""}`;
     let theirs = options.cache?.get(key);
     if (!theirs) {
-      theirs = await computeTheirSide(git, base, ref.sha);
+      theirs = await computeTheirSide(git, base, ref.sha, main);
       options.cache?.set(key, theirs);
     }
     let mine = mySides.get(base);

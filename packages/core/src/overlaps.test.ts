@@ -10,6 +10,7 @@ import {
   overlapsWithMe,
   parseDiffHunks,
   predictMainConflicts,
+  withoutMainHunks,
   recentActivity,
   type TheirSide,
 } from "./overlaps.js";
@@ -89,6 +90,23 @@ describe("overlapsWithMe", () => {
     const eve = (await overlapsWithMe(dir)).find((o) => o.branch === "eve/feature");
     expect(eve?.files.map((f) => f.path)).toEqual(["NOTES.md"]);
     expect(eve?.files[0]?.ranges).toHaveLength(1);
+  });
+
+  test("changes that came from main aren't a teammate's: alice's newer base isn't an overlap", async () => {
+    // alice and gina branched after main's "Add API URL to config" (by alice);
+    // carol branched before it and now edits the same config line.
+    const dir = pg.clone("carol");
+    writeFileSync(
+      path.join(dir, "src", "config.js"),
+      "export const config = {\n  debug: true,\n};\n",
+    );
+    const overlaps = await overlapsWithMe(dir);
+    const withConfig = overlaps.filter((o) => o.files.some((f) => f.path === "src/config.js"));
+    expect(branches(withConfig)).not.toContain("alice/feature");
+    expect(branches(withConfig)).not.toContain("gina/feature");
+    // hank changed src/config.js himself (not via main): that's still an overlap.
+    expect(branches(withConfig)).toEqual(["hank/feature"]);
+    expect(withConfig[0]?.files.find((f) => f.path === "src/config.js")?.authors).toEqual(["hank"]);
   });
 
   test("no overlap when we change different files (hank only touched src/config.js)", async () => {
@@ -179,17 +197,64 @@ describe("helpers", () => {
       "--- a/src/app.js",
       "+++ b/src/app.js",
       "@@ -2 +2 @@ function greeting() {",
+      '-  return "Hello";',
+      '+  return "Hi";',
       "@@ -5,0 +6,2 @@",
+      "+one",
+      "+two",
       "--- a/old.txt",
       "+++ /dev/null",
       "@@ -1,3 +0,0 @@",
+      "-a",
+      "-b",
+      "-c",
     ].join("\n");
     expect(Object.fromEntries(parseDiffHunks(diff))).toEqual({
       "src/app.js": [
-        { oldStart: 2, oldCount: 1, newStart: 2, newCount: 1 },
-        { oldStart: 5, oldCount: 0, newStart: 6, newCount: 2 },
+        { oldStart: 2, oldCount: 1, newStart: 2, newCount: 1, body: '-  return "Hello";\n+  return "Hi";' },
+        { oldStart: 5, oldCount: 0, newStart: 6, newCount: 2, body: "+one\n+two" },
       ],
-      "old.txt": [{ oldStart: 1, oldCount: 3, newStart: 0, newCount: 0 }],
+      "old.txt": [{ oldStart: 1, oldCount: 3, newStart: 0, newCount: 0, body: "-a\n-b\n-c" }],
     });
+  });
+
+  test("withoutMainHunks: keeps their own hunks, drops main's, even in the same file", () => {
+    const hunk = (oldStart: number, body: string) => ({ oldStart, oldCount: 1, newStart: oldStart, newCount: 1, body });
+    const theirs = new Map([
+      ["src/config.js", [hunk(2, "-a\n+main"), hunk(9, "-b\n+theirs")]],
+      ["only-main.js", [hunk(1, "-x\n+main")]],
+      ["same-spot.js", [hunk(4, "-y\n+theirs")]],
+    ]);
+    const main = new Map([
+      ["src/config.js", [hunk(2, "-a\n+main")]],
+      ["only-main.js", [hunk(1, "-x\n+main")]],
+      ["same-spot.js", [hunk(4, "-y\n+main")]], // same place, different lines: theirs stays
+    ]);
+    expect(Object.fromEntries(withoutMainHunks(theirs, main))).toEqual({
+      "src/config.js": [hunk(9, "-b\n+theirs")],
+      "same-spot.js": [hunk(4, "-y\n+theirs")],
+    });
+  });
+
+  test("parseDiffHunks: keeps hunk lines, and content like '--- x' isn't a header", () => {
+    const diff = [
+      "--- a/notes.md",
+      "+++ b/notes.md",
+      "@@ -3,2 +3,2 @@",
+      "--- old rule",
+      "-second",
+      "+++ new rule",
+      "+second!",
+      "\\ No newline at end of file",
+    ].join("\n");
+    expect(parseDiffHunks(diff).get("notes.md")).toEqual([
+      {
+        oldStart: 3,
+        oldCount: 2,
+        newStart: 3,
+        newCount: 2,
+        body: "--- old rule\n-second\n+++ new rule\n+second!",
+      },
+    ]);
   });
 });
