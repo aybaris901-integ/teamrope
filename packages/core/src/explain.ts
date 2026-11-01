@@ -14,6 +14,7 @@ import type { RemoteBranch, TeamProblem, TeamStatus } from "./team-status.js";
 import type { MyProblem } from "./my-problems.js";
 import type { ConflictHunk } from "./dry-run.js";
 import type { OverlapHint } from "./editor-hints.js";
+import type { TimelineProblem, TimelineRow } from "./timeline.js";
 import type { FileOverlap, LineRange, MainConflictPreview, OverlapWithMe } from "./overlaps.js";
 import { gitignoreEntry, type RiskyFile, type SecretReason } from "./risky-files.js";
 
@@ -1007,4 +1008,40 @@ export function conflictLineHint(conflict: MainConflictPreview, hunk: ConflictHu
   if (!first) return `Removed on ${mainBranch}${authors ? ` by ${authors}` : ""}`;
   const who = authors || mainBranch;
   return `${who}: ${first.length > MAX_HINT_TEXT ? `${first.slice(0, MAX_HINT_TEXT - 1)}…` : first}`;
+}
+
+// --- Timeline ---------------------------------------------------------------
+
+const HOUR = 60 * 60 * 1000;
+
+/** "Last 2 hours". */
+export function timelineTitle(windowMs: number): string {
+  const hours = Math.round(windowMs / HOUR);
+  return `Last ${plural(hours, "hour")}`;
+}
+
+/** Labels under the timeline, oldest first: "−2h", "−1h", "now". */
+export function timelineAxis(windowMs: number): string[] {
+  const hours = Math.max(1, Math.round(windowMs / HOUR));
+  return [...Array.from({ length: hours }, (_, i) => `−${hours - i}h`), "now"];
+}
+
+/** How long a problem has been open ("~20m", "just now"), or "" when unknown. */
+export function timelineDuration(problem: TimelineProblem, now: Date): string {
+  return problem.since ? approxAge(problem.since, now) : "";
+}
+
+/** One line about a person's row: for screen readers and the card heading. */
+export function timelineRowSummary(row: TimelineRow, now: Date, windowMs: number): string {
+  const parts = [row.isMe ? `${row.person} (you)` : row.person];
+  const shared = row.commits.length;
+  if (shared > 0) parts.push(`${plural(shared, "commit")} shared in the ${timelineTitle(windowMs).toLowerCase()}`);
+  else parts.push(row.lastShared ? `last shared ${ago(row.lastShared, now)}` : "nothing shared yet");
+  if (row.notSharedSince) parts.push(`changes not shared · ${approxAge(row.notSharedSince, now)}`);
+  for (const problem of row.problems) {
+    const what = problem.kind === "conflict" ? "would conflict with main" : "same code as a teammate";
+    const duration = timelineDuration(problem, now);
+    parts.push(duration ? `${what} · ${duration}` : what);
+  }
+  return parts.join(" · ");
 }

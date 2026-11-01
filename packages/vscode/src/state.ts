@@ -12,6 +12,8 @@ import {
   problemsForMe,
   readMemberName,
   recentActivity,
+  sharedCommits,
+  TIMELINE_WINDOW_MS,
   teamStatus,
   type ActivityEntry,
   type Diagnosis,
@@ -19,6 +21,7 @@ import {
   type MyProblem,
   type OverlapWithMe,
   type RemoteState,
+  type SharedCommit,
   type TeamStatus,
   type TheirSideCache,
 } from "@teamrope/core";
@@ -42,6 +45,8 @@ export class TeamRopeState {
   mainConflicts: MainConflictPreview[] = [];
   notSharedSince: Date | null = null;
   activity: ActivityEntry[] = [];
+  /** Teammates' shared commits in the timeline window. */
+  commits: SharedCommit[] = [];
   /** My conflict with main, my overlaps, then the team's problems, each once. */
   problems: MyProblem[] = [];
   /** Plain message when diagnose failed (other than "not a repo"). */
@@ -133,6 +138,7 @@ export class TeamRopeState {
     this.mainConflicts = await predictMainConflicts(dir);
     this.notSharedSince = await notSharedSince(dir);
     this.activity = await recentActivity(dir, { limit: 5 });
+    this.commits = await sharedCommits(dir, { since: new Date(Date.now() - TIMELINE_WINDOW_MS) });
     const { saved, suggestion } = await readMemberName(dir);
     this.me = saved ?? suggestion;
     this.problems = problemsForMe(
@@ -172,6 +178,7 @@ export class TeamRopeState {
     this.mainConflicts = [];
     this.notSharedSince = null;
     this.activity = [];
+    this.commits = [];
     this.problems = [];
     this.error = undefined;
     this.teamError = undefined;

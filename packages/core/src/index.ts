@@ -133,5 +133,16 @@ export {
   type TheirSideCache,
 } from "./overlaps.js";
 export { conflictLineHint, conflictNotice, overlapHintTitle } from "./explain.js";
+export { timelineAxis, timelineDuration, timelineRowSummary, timelineTitle } from "./explain.js";
+export {
+  buildTimeline,
+  sharedCommits,
+  TIMELINE_WINDOW_MS,
+  type SharedCommit,
+  type Timeline,
+  type TimelineProblem,
+  type TimelineProblemKind,
+  type TimelineRow,
+} from "./timeline.js";
 export { overlapHints, overlapNames, type OverlapHint } from "./editor-hints.js";
 export { involvesMe, onePerPerson, problemPeople, problemsForMe, type MyProblem } from "./my-problems.js";

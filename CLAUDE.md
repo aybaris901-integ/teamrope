@@ -58,6 +58,8 @@ dave: on main, up to date, with an uncommitted edit to src/app.js (started codin
 gina: on gina/feature (pushed), with an edited README.md, a new .env holding a fake sk-test key, and a node_modules/ folder.
 hank: on hank/feature (pushed), branched before main's last commit; his commit adds a line to src/config.js where main's "Add API URL to config" (authored by alice) did, so syncing would conflict.
 
+Commits are backdated so the timeline has something to show: main's first three commits are about 5 h old, carol's commit 100 min, hank's 95, main's "Add API URL to config" 80, eve's 70, frank's 55, alice's 40, bob's 30. carol's uncommitted edit is 15 minutes old.
+
 When adding a feature, add the broken state that exercises it.
 npm test rebuilds the playground automatically (vitest globalSetup) and runs with a temp HOME, so your global Git config doesn't affect tests. Run bash scripts/broken-repo.sh by hand to inspect the clones.
 Commands

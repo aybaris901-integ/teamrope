@@ -211,7 +211,10 @@ describe("helpers", () => {
   test("notSharedSince: the oldest changed file's time, null when clean", async () => {
     const since = await notSharedSince(pg.clone("carol"));
     expect(since).toBeInstanceOf(Date);
-    expect(Date.now() - (since?.getTime() ?? 0)).toBeLessThan(10 * 60 * 1000);
+    // The playground dates carol's edit 15 minutes before it was built.
+    const age = Date.now() - (since?.getTime() ?? 0);
+    expect(age).toBeGreaterThanOrEqual(15 * 60 * 1000);
+    expect(age).toBeLessThan(30 * 60 * 1000);
     expect(await notSharedSince(pg.clone("alice"))).toBeNull();
   });
 

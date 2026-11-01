@@ -30,6 +30,11 @@ export function initials(name: string): string {
   return letters.join("").slice(0, 2).toUpperCase() || "?";
 }
 
+/** The person's avatar color, also used for their label in the timeline. */
+export function avatarColor(name: string): string {
+  return PALETTE[hash(name.toLowerCase()) % PALETTE.length] ?? PALETTE[0] ?? "#5F6670";
+}
+
 export class Avatars {
   private readonly dir: string;
 
@@ -42,7 +47,7 @@ export class Avatars {
   uri(name: string): vscode.Uri {
     const text = initials(name);
     const index = hash(name.toLowerCase()) % PALETTE.length;
-    const color = PALETTE[index] ?? PALETTE[0];
+    const color = avatarColor(name);
     const file = path.join(this.dir, `p${index}-${encodeURIComponent(text)}.svg`);
     if (!existsSync(file)) {
       const fontSize = text.length > 1 ? 6.5 : 8.5;

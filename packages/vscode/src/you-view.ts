@@ -3,15 +3,25 @@
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import {
+  ago,
+  buildTimeline,
   explainMyProblem,
   headline,
   involvesMe,
   panelDetails,
   shortNextAction,
+  timelineAxis,
+  timelineDuration,
+  timelineRowSummary,
+  timelineTitle,
+  TIMELINE_WINDOW_MS,
+  type Diagnosis,
   type MyProblem,
   type Severity,
+  type TimelineRow,
 } from "@teamrope/core";
 import * as vscode from "vscode";
+import { avatarColor, initials } from "./avatars.js";
 import { compareTargetFor } from "./problem-actions.js";
 import type { TeamRopeState } from "./state.js";
 
@@ -24,6 +34,40 @@ interface ButtonModel {
 /** The full-width button under the headline; "secondary" when nothing is urgent. */
 type MainButtonModel = ButtonModel & { style: "primary" | "secondary" };
 
+interface ProblemModel {
+  index: number;
+  text: string;
+  kind: MyProblem["kind"];
+  canCompare: boolean;
+}
+
+/** One person's line in the timeline. Positions are percent of the window (0 = oldest, 100 = now). */
+interface TimelineRowModel {
+  id: string;
+  /** "you" for me, else the name; the page shows only the avatar when narrow. */
+  label: string;
+  initials: string;
+  /** Neutral avatar color: never a status color. */
+  color: string;
+  isMe: boolean;
+  summary: string;
+  dots: Array<{ x: number; title: string }>;
+  /** Me only: where my changes not shared yet start. */
+  notShared?: number;
+  /** Status shapes; x is 100 when the start is unknown. */
+  shapes: Array<{ kind: "conflict" | "overlap"; x: number }>;
+  duration: string;
+  /** For narrow sidebars: "now" instead of "just now". */
+  durationShort: string;
+  card: { problems: ProblemModel[]; commits: string[]; sync?: ButtonModel };
+}
+
+interface TimelineModel {
+  title: string;
+  axis: string[];
+  rows: TimelineRowModel[];
+}
+
 /** What the page draws. Sent with postMessage; the page never builds text itself. */
 type YouModel =
   | { state: "noFolder" | "noRepo" | "loading" }
@@ -34,7 +78,8 @@ type YouModel =
       sentence: string;
       primary?: MainButtonModel;
       secondary: ButtonModel[];
-      problems: Array<{ index: number; text: string; kind: MyProblem["kind"]; canCompare: boolean }>;
+      problems: ProblemModel[];
+      timeline: TimelineModel;
       details: string[];
     };
 
@@ -155,12 +200,60 @@ export class YouView implements vscode.WebviewViewProvider {
       secondary: primary.style === "secondary" ? [] : ACTIONS.filter((a) => a.command !== primary.command),
       // Only problems about me; everyone else's live in the Team view.
       problems: s.problems.flatMap((problem, index) =>
-        involvesMe(problem, d.currentBranch, s.me)
-          ? [{ index, text: explainMyProblem(problem, now), kind: problem.kind, canCompare: Boolean(compareTargetFor(problem)) }]
-          : [],
+        involvesMe(problem, d.currentBranch, s.me) ? [this.problemModel(problem, index, now)] : [],
       ),
+      timeline: this.timelineModel(d, now),
       details: panelDetails(d),
     };
+  }
+
+  private problemModel(problem: MyProblem, index: number, now: Date): ProblemModel {
+    return { index, text: explainMyProblem(problem, now), kind: problem.kind, canCompare: Boolean(compareTargetFor(problem)) };
+  }
+
+  private timelineModel(d: Diagnosis, now: Date): TimelineModel {
+    const s = this.state;
+    const timeline = buildTimeline({
+      now,
+      me: s.me,
+      commits: s.commits,
+      team: s.team,
+      problems: s.problems,
+      notSharedSince: d.dirtyFiles.length > 0 ? s.notSharedSince : null,
+    });
+    const at = (date: Date): number => {
+      const x = ((date.getTime() - timeline.start.getTime()) / TIMELINE_WINDOW_MS) * 100;
+      return Math.round(Math.min(100, Math.max(0, x)) * 10) / 10;
+    };
+    const rowModel = (row: TimelineRow): TimelineRowModel => {
+      const duration = row.problems.map((p) => timelineDuration(p, now)).find(Boolean) ?? "";
+      const indexes = [...new Set(row.problems.flatMap((p) => p.problemIndexes))];
+      return {
+        id: row.person,
+        label: row.isMe ? "you" : row.person,
+        initials: initials(row.person),
+        color: avatarColor(row.person),
+        isMe: row.isMe,
+        summary: timelineRowSummary(row, now, TIMELINE_WINDOW_MS),
+        dots: row.commits.map((c) => ({ x: at(c.date), title: `${c.branch}: ${c.subject} · ${ago(c.date, now)}` })),
+        notShared: row.notSharedSince ? at(row.notSharedSince) : undefined,
+        shapes: row.problems.map((p) => ({ kind: p.kind, x: p.since ? at(p.since) : 100 })),
+        duration,
+        durationShort: duration === "just now" ? "now" : duration,
+        card: {
+          problems: indexes.flatMap((index) => {
+            const problem = s.problems[index];
+            return problem ? [this.problemModel(problem, index, now)] : [];
+          }),
+          commits: row.commits
+            .slice(-3)
+            .reverse()
+            .map((c) => `${c.subject} · ${ago(c.date, now)}`),
+          sync: row.isMe && d.nextAction === "sync" ? ACTIONS.find((a) => a.command === "teamrope.sync") : undefined,
+        },
+      };
+    };
+    return { title: timelineTitle(TIMELINE_WINDOW_MS), axis: timelineAxis(TIMELINE_WINDOW_MS), rows: timeline.rows.map(rowModel) };
   }
 
   private html(webview: vscode.Webview): string {

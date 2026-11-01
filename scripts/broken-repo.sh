@@ -54,11 +54,15 @@ clone_as() {
   git -C "$PLAYGROUND/$name" config user.email "$name@example.com"
 }
 
-# Commit all changes in playground/<name> with a message.
+# Commit all changes in playground/<name> with a message, dated <minutes>
+# ago, so the timeline has commits spread over the last hours.
 commit_as() {
-  local name="$1" message="$2"
+  local name="$1" message="$2" minutes="$3"
+  local date
+  date="$(date -u -d "-$minutes minutes" +%Y-%m-%dT%H:%M:%SZ)"
   git -C "$PLAYGROUND/$name" add -A
-  git -C "$PLAYGROUND/$name" commit --quiet -m "$message"
+  GIT_AUTHOR_DATE="$date" GIT_COMMITTER_DATE="$date" \
+    git -C "$PLAYGROUND/$name" commit --quiet -m "$message"
 }
 
 # --- origin with a few commits on main -------------------------------------
@@ -72,7 +76,7 @@ git -C "$PLAYGROUND/seed" config user.name seed
 git -C "$PLAYGROUND/seed" config user.email seed@example.com
 mkdir -p "$PLAYGROUND/seed/src"
 printf '# Hackathon project\n' > "$PLAYGROUND/seed/README.md"
-commit_as seed "Add README"
+commit_as seed "Add README" 300
 
 cat > "$PLAYGROUND/seed/src/app.js" <<'EOF'
 function greeting() {
@@ -81,10 +85,10 @@ function greeting() {
 
 console.log(greeting());
 EOF
-commit_as seed "Add app"
+commit_as seed "Add app" 290
 
 printf 'export const config = {\n  debug: false,\n};\n' > "$PLAYGROUND/seed/src/config.js"
-commit_as seed "Add config"
+commit_as seed "Add config" 280
 git -C "$PLAYGROUND/seed" push --quiet origin main
 
 # --- carol: branches off main now, so she falls behind later ---------------
@@ -92,7 +96,7 @@ git -C "$PLAYGROUND/seed" push --quiet origin main
 clone_as carol
 git -C "$PLAYGROUND/carol" switch --quiet -c carol/feature
 printf 'body { margin: 0; }\n' > "$PLAYGROUND/carol/src/styles.css"
-commit_as carol "Add styles"
+commit_as carol "Add styles" 100
 git -C "$PLAYGROUND/carol" push --quiet -u origin carol/feature
 
 # --- hank: changes the same config lines main is about to change -----------
@@ -101,7 +105,7 @@ clone_as hank
 git -C "$PLAYGROUND/hank" switch --quiet -c hank/feature
 printf 'export const config = {\n  debug: false,\n  apiUrl: "https://hank.example.com",\n};\n' \
   > "$PLAYGROUND/hank/src/config.js"
-commit_as hank "Point config at hank's server"
+commit_as hank "Point config at hank's server" 95
 git -C "$PLAYGROUND/hank" push --quiet -u origin hank/feature
 
 # --- main moves forward (carol and hank are now behind) ---------------------
@@ -111,7 +115,7 @@ git -C "$PLAYGROUND/seed" config user.name alice
 git -C "$PLAYGROUND/seed" config user.email alice@example.com
 printf 'export const config = {\n  debug: false,\n  apiUrl: "http://localhost:3000",\n};\n' \
   > "$PLAYGROUND/seed/src/config.js"
-commit_as seed "Add API URL to config"
+commit_as seed "Add API URL to config" 80
 git -C "$PLAYGROUND/seed" push --quiet origin main
 
 # --- alice: own branch from latest main, clean, pushed ----------------------
@@ -119,21 +123,21 @@ git -C "$PLAYGROUND/seed" push --quiet origin main
 clone_as alice
 git -C "$PLAYGROUND/alice" switch --quiet -c alice/feature
 sed -i 's/return "Hello";/return "Hello, hackers!";/' "$PLAYGROUND/alice/src/app.js"
-commit_as alice "Make greeting friendlier"
+commit_as alice "Make greeting friendlier" 40
 git -C "$PLAYGROUND/alice" push --quiet -u origin alice/feature
 
 # --- bob: committed straight on main, not pushed ----------------------------
 
 clone_as bob
 printf '\n## Team\n\nAlice, Bob, Carol\n' >> "$PLAYGROUND/bob/README.md"
-commit_as bob "Add team section"
+commit_as bob "Add team section" 30
 
 # --- eve: own branch, clean, but origin points nowhere (no access) ----------
 
 clone_as eve
 git -C "$PLAYGROUND/eve" switch --quiet -c eve/feature
 printf '# Notes\n' > "$PLAYGROUND/eve/NOTES.md"
-commit_as eve "Add notes"
+commit_as eve "Add notes" 70
 git -C "$PLAYGROUND/eve" push --quiet -u origin eve/feature
 git -C "$PLAYGROUND/eve" remote set-url origin "$PLAYGROUND/missing-origin.git"
 
@@ -142,7 +146,7 @@ git -C "$PLAYGROUND/eve" remote set-url origin "$PLAYGROUND/missing-origin.git"
 clone_as frank
 git -C "$PLAYGROUND/frank" switch --quiet -c frank/feature
 sed -i 's/return "Hello";/return "Hey there";/' "$PLAYGROUND/frank/src/app.js"
-commit_as frank "Change greeting"
+commit_as frank "Change greeting" 55
 git -C "$PLAYGROUND/frank" push --quiet -u origin frank/feature
 # Same line as alice/feature, so the merge must stop on a conflict.
 if git -C "$PLAYGROUND/frank" merge --no-edit origin/alice/feature >/dev/null; then
@@ -171,6 +175,8 @@ printf '{ "name": "left-pad" }\n' > "$PLAYGROUND/gina/node_modules/left-pad/pack
 
 git -C "$PLAYGROUND/carol" fetch --quiet origin
 sed -i 's/return "Hello";/return "Hi team";/' "$PLAYGROUND/carol/src/app.js"
+# Changed 15 minutes ago, so "not shared" has a length on the timeline.
+touch -d "15 minutes ago" "$PLAYGROUND/carol/src/app.js"
 
 # The seed clone was only used to build origin.
 rm -rf "$PLAYGROUND/seed"
