@@ -6,6 +6,7 @@ import {
   explainDiagnosis,
   explainMyProblem,
   headline,
+  involvesMe,
   shortNextAction,
   type MyProblem,
   type Severity,
@@ -146,10 +147,11 @@ export class YouView implements vscode.WebviewViewProvider {
       sentence,
       primary,
       secondary: ACTIONS.filter((a) => a.command !== primary?.command),
+      // Only problems about me; everyone else's live in the Team view.
       problems: s.problems.flatMap((problem, index) =>
-        problem.kind === "team"
-          ? [] // team problems live in the Team view
-          : [{ index, text: explainMyProblem(problem, now), kind: problem.kind, canCompare: Boolean(compareTargetFor(problem)) }],
+        involvesMe(problem, d.currentBranch, s.me)
+          ? [{ index, text: explainMyProblem(problem, now), kind: problem.kind, canCompare: Boolean(compareTargetFor(problem)) }]
+          : [],
       ),
       details: [...summary, next],
     };

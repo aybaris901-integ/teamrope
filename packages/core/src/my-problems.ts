@@ -8,6 +8,18 @@ export type MyProblem =
   | { kind: "overlapWithMe"; overlap: OverlapWithMe; file: FileOverlap }
   | { kind: "team"; problem: TeamProblem };
 
+/** True if a problem is about me: my conflict, my overlap, or a team problem on my branch. */
+export function involvesMe(problem: MyProblem, myBranch: string | null, me: string | undefined): boolean {
+  if (problem.kind !== "team") return true;
+  const p = problem.problem;
+  switch (p.kind) {
+    case "overlap":
+      return (myBranch !== null && p.overlap.branches.includes(myBranch)) || p.overlap.owners.includes(me ?? "");
+    default:
+      return p.branch === myBranch || p.owner === me;
+  }
+}
+
 /**
  * Local results win over Team status (they include work not shared yet and
  * have line ranges): a team overlap between my branch and a teammate's is

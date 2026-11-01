@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { copyPlayground, git, type PlaygroundCopy } from "../test/playground-copy.js";
-import { problemsForMe } from "./my-problems.js";
+import { involvesMe, problemsForMe, type MyProblem } from "./my-problems.js";
 import {
   fileAtRef,
   notSharedSince,
@@ -150,6 +150,24 @@ describe("problemsForMe", () => {
       "frank/feature",
     ]);
     expect(problems.some((p) => p.kind === "team" && p.problem.kind === "conflictWithMain")).toBe(true); // hank's
+  });
+});
+
+describe("involvesMe", () => {
+  const team = (problem: MyProblem extends infer P ? (P extends { kind: "team" } ? P["problem"] : never) : never): MyProblem => ({
+    kind: "team",
+    problem,
+  });
+  test("team problems on my branch or with my name are mine; the rest aren't", () => {
+    const mine = "carol/feature";
+    expect(involvesMe(team({ kind: "noRecentSave", branch: mine, owner: "carol", hours: 3 }), mine, "carol")).toBe(true);
+    expect(
+      involvesMe(team({ kind: "overlap", overlap: { branches: ["alice/feature", mine], owners: ["alice", "carol"], files: ["a"] } }), mine, "carol"),
+    ).toBe(true);
+    expect(
+      involvesMe(team({ kind: "overlap", overlap: { branches: ["alice/feature", "frank/feature"], owners: ["alice", "frank"], files: ["a"] } }), mine, "carol"),
+    ).toBe(false);
+    expect(involvesMe(team({ kind: "conflictWithMain", branch: "hank/feature", owner: "hank", conflicts: [] }), mine, "carol")).toBe(false);
   });
 });
 

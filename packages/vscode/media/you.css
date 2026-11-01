@@ -73,7 +73,7 @@ body {
   cursor: pointer;
 }
 .problem.mainConflict .codicon { color: var(--vscode-errorForeground); }
-.problem.overlapWithMe .codicon { color: var(--vscode-editorWarning-foreground); }
+.problem.overlapWithMe .codicon, .problem.team .codicon { color: var(--vscode-editorWarning-foreground); }
 .problem-actions { display: flex; gap: 12px; margin: 2px 0 0 22px; }
 
 .link {

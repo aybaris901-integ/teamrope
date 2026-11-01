@@ -2,6 +2,7 @@
 // All text comes from core's explain layer.
 import {
   explainMyProblem,
+  involvesMe,
   memberStatus,
   shortDuration,
   statusBarSummary,
@@ -59,7 +60,10 @@ export class TeamView extends Provider {
 
   protected roots(): Item[] {
     const now = new Date();
-    const problems = this.state.problems.map((problem) =>
+    // Problems about me live in the You panel; Team shows everyone else's.
+    const myBranch = this.state.diagnosis?.currentBranch ?? null;
+    const others = this.state.problems.filter((p) => !involvesMe(p, myBranch, this.state.me));
+    const problems = others.map((problem) =>
       item(explainMyProblem(problem, now), {
         iconPath: PROBLEM_ICONS[problem.kind],
         contextValue: compareTargetFor(problem) ? "problem copyable comparable" : "problem copyable",

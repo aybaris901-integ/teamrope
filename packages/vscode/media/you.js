@@ -43,7 +43,7 @@
   }
 
   const SEVERITY_ICONS = { error: "error", warning: "warning", info: "info", ok: "pass" };
-  const PROBLEM_ICONS = { mainConflict: "error", overlapWithMe: "warning" };
+  const PROBLEM_ICONS = { mainConflict: "error", overlapWithMe: "warning", team: "warning" };
 
   /** @param {any} model */
   function render(model) {
