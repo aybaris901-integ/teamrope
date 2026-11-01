@@ -421,6 +421,8 @@ export async function notSharedSince(dir: string): Promise<Date | null> {
 export interface ActivityEntry {
   branch: string;
   author: string;
+  /** Who to show: the branch owner (as in Team) on member branches, the commit author on main. */
+  who: string;
   date: Date;
   subject: string;
 }
@@ -431,6 +433,7 @@ export async function recentActivity(
   options: { limit?: number; mainBranch?: string } = {},
 ): Promise<ActivityEntry[]> {
   const git = await openRepo(dir);
+  const mainBranch = options.mainBranch ?? "main";
   const output = await git.raw([
     "log",
     "--remotes=origin",
@@ -443,11 +446,14 @@ export async function recentActivity(
     .filter(Boolean)
     .map((line) => {
       const [source = "", author = "", unix = "0", ...subject] = line.split("\t");
-      const branch = source.replace(/^(refs\/remotes\/)?origin\//, "");
+      const sourceBranch = source.replace(/^(refs\/remotes\/)?origin\//, "");
+      // origin/HEAD is just another name for main.
+      const branch = sourceBranch === "HEAD" ? mainBranch : sourceBranch;
+      const slash = branch.indexOf("/");
       return {
-        // origin/HEAD is just another name for main.
-        branch: branch === "HEAD" ? (options.mainBranch ?? "main") : branch,
+        branch,
         author,
+        who: branch !== mainBranch && slash > 0 ? branch.slice(0, slash) : author,
         date: new Date(Number(unix) * 1000),
         subject: subject.join("\t"),
       };

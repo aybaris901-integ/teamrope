@@ -222,6 +222,9 @@ describe("helpers", () => {
       expect.objectContaining({ branch: "main", author: "alice", subject: "Add API URL to config" }),
     );
     expect(activity.map((a) => a.branch)).not.toContain("HEAD");
+    // On member branches the branch owner is shown, as in Team; on main, the author.
+    expect(activity.find((a) => a.branch === "main")?.who).toBe(activity.find((a) => a.branch === "main")?.author);
+    for (const a of activity.filter((a) => a.branch !== "main")) expect(a.who).toBe(a.branch.split("/")[0]);
   });
 
   test("fileAtRef: a teammate's version, or null if the file isn't there", async () => {

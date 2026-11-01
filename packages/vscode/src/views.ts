@@ -124,8 +124,8 @@ export class ActivityView extends Provider {
   protected roots(): Item[] {
     const now = new Date();
     return this.state.activity.map((entry) =>
-      item(`${entry.author} · ${entry.subject}`, {
-        iconPath: this.avatars.uri(entry.author),
+      item(`${entry.who} · ${entry.subject}`, {
+        iconPath: this.avatars.uri(entry.who),
         description: `${entry.branch} · ${ago(entry.date, now)}`,
       }),
     );
