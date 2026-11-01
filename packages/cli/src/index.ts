@@ -78,7 +78,7 @@ async function askMemberName(
 ): Promise<string | null> {
   if (!nameIsNew || flags.name !== undefined || flags.yes) return null;
   const answer = await input({
-    message: "What name should your branches start with?",
+    message: "Your name (used for your branches)",
     default: suggestion,
     validate: (value) => slugify(value) !== "" || "Use at least one letter or number.",
   });

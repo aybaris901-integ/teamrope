@@ -43,18 +43,29 @@ export async function confirmPlan(title: string, steps: string[], notes: string[
 export async function askMemberName(suggestion: string): Promise<string | undefined> {
   return vscode.window.showInputBox({
     title: "branchguard",
-    prompt: "What name should your branches start with?",
+    prompt: "Your name (used for your branches)",
+    placeHolder: "e.g. alice",
     value: suggestion,
     validateInput: (value) => (slugify(value) === "" ? "Use at least one letter or number." : undefined),
   });
 }
 
-/** Asks for an optional task name. Undefined if cancelled; "" means the default. */
-export async function askTaskName(): Promise<string | undefined> {
+/**
+ * Asks for an optional task name. Undefined if cancelled; "" means the default.
+ * `memberName`: the saved name, if any, to warn about alice/alice.
+ */
+export async function askTaskName(memberName: string | null): Promise<string | undefined> {
   return vscode.window.showInputBox({
     title: "branchguard: Start task",
-    prompt: "What are you working on? (optional, used in the branch name)",
-    placeHolder: "work",
+    prompt: "What are you working on?",
+    placeHolder: "e.g. login-page",
+    validateInput: (value) =>
+      memberName && slugify(value) === memberName
+        ? {
+            message: `That's your name, so the branch would be ${memberName}/${memberName}. I'll use "work" instead: ${memberName}/work.`,
+            severity: vscode.InputBoxValidationSeverity.Warning,
+          }
+        : undefined,
   });
 }
 

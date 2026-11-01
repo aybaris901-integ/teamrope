@@ -19,6 +19,7 @@ import {
   planSave,
   planStartTask,
   planSync,
+  readMemberName,
   slugify,
   type MyProblem,
   type SavePlan,
@@ -55,7 +56,7 @@ export class Actions {
   async startTask(): Promise<void> {
     const ctx = this.requireRepo();
     if (!ctx) return;
-    const taskName = await askTaskName();
+    const taskName = await askTaskName((await readMemberName(ctx.dir)).saved);
     if (taskName === undefined) return;
 
     const options = { taskName, remoteOps: ctx.remoteOps };

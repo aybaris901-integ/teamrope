@@ -3,7 +3,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { copyPlayground, git, type PlaygroundCopy } from "../test/playground-copy.js";
 import { explainStartTaskRefusal } from "./explain.js";
-import { executeStartTask, planStartTask, slugify } from "./start-task.js";
+import { executeStartTask, planStartTask, slugify, taskSlug } from "./start-task.js";
 
 let pg: PlaygroundCopy;
 beforeEach(() => {
@@ -189,5 +189,18 @@ describe("slugify", () => {
     ["日本語", ""],
   ])("%s -> %s", (input, slug) => {
     expect(slugify(input)).toBe(slug);
+  });
+});
+
+describe("taskSlug", () => {
+  test("a task named like the member becomes work, so there's no alice/alice", () => {
+    expect(taskSlug("Login page", "alice")).toBe("login-page");
+    expect(taskSlug("", "alice")).toBe("work");
+    expect(taskSlug("Alice", "alice")).toBe("work");
+  });
+
+  test("planStartTask uses it", async () => {
+    const plan = await planStartTask(pg.clone("alice"), { taskName: "alice" });
+    expect(plan.branch).toBe("alice/work");
   });
 });

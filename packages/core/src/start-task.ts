@@ -201,7 +201,7 @@ export async function planStartTask(
   const git = await openRepo(dir);
   const { saved, suggestion } = await readMemberNameWith(git);
   const memberName = slugify(options.memberName ?? "") || saved || suggestion;
-  const task = slugify(options.taskName ?? "") || DEFAULT_TASK;
+  const task = taskSlug(options.taskName ?? "", memberName);
   const branch = await freeBranchName(git, `${memberName}/${task}`);
 
   const head = await resolveRef(git, "HEAD");
@@ -263,6 +263,12 @@ async function checkUnchanged(git: SimpleGit, plan: StartTaskPlan): Promise<void
   if (create && !create.carry && !(await git.status()).isClean()) {
     throw new Error("You have new unsaved changes since the plan was made.");
   }
+}
+
+/** The task part of the branch name: "work" when empty or just the member's name (no alice/alice). */
+export function taskSlug(taskName: string, memberName: string): string {
+  const task = slugify(taskName);
+  return task && task !== memberName ? task : DEFAULT_TASK;
 }
 
 /** Runs one Start task step. Also used by Save when it starts from main. */

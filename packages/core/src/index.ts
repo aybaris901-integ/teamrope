@@ -66,6 +66,7 @@ export {
   planStartTask,
   readMemberName,
   slugify,
+  taskSlug,
   type BackupRef,
   type StartTaskOptions,
   type StartTaskPlan,
