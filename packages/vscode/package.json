@@ -110,7 +110,7 @@
         {
           "command": "branchguard.sync",
           "when": "view == branchguard.you || view == branchguard.team",
-          "group": "navigation@2"
+          "group": "1_actions@3"
         },
         {
           "command": "branchguard.startTask",
@@ -125,7 +125,7 @@
         {
           "command": "branchguard.teamStatus",
           "when": "view == branchguard.you || view == branchguard.team",
-          "group": "1_actions@3"
+          "group": "1_actions@4"
         }
       ],
       "view/item/context": [
