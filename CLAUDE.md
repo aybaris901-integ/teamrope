@@ -83,6 +83,8 @@ I'm a solo developer on a 7-day sprint. Keep changes small and focused on the cu
 Before a big change, show a short plan and wait for my OK.
 After finishing, tell me how to test it manually in one or two steps.
 If something in this file looks wrong or blocks good work, say so instead of working around it.
+Privacy
+Never take screenshots of my screen or read my browser without asking me first in chat, even to check your own work. Ask me to look and tell you instead.
 Outputs
 Git для хакатон-команд — концепция MVP
 Claude Docs
