@@ -12,6 +12,14 @@ import { ActivityView, TeamView } from "./views.js";
 import { YouView } from "./you-view.js";
 
 const SAVE_DEBOUNCE_MS = 1500;
+const WALKTHROUGH_SHOWN = "branchguard.walkthroughShown";
+const TEAM_OPENED_FOR_CAPTAIN = "branchguard.teamOpenedForCaptain";
+
+type Role = "captain" | "member";
+
+function role(): Role {
+  return vscode.workspace.getConfiguration("branchguard").get<Role>("role", "member");
+}
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const output = new Output();
@@ -68,6 +76,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   command("branchguard.copyMessage", (target: never) => actions.copyMessage(target));
   command("branchguard.compare", (target: never) => actions.compare(target));
   command("branchguard.refresh", () => state.refresh("force"));
+  const walkthroughId = `${context.extension.id}#getStarted`;
+  command("branchguard.openWalkthrough", async () => {
+    await vscode.commands.executeCommand("workbench.action.openWalkthrough", walkthroughId, false);
+  });
+  command("branchguard.setRole", async (value: never) => {
+    const chosen: Role = value === "captain" ? "captain" : "member";
+    await vscode.workspace.getConfiguration("branchguard").update("role", chosen, vscode.ConfigurationTarget.Global);
+  });
+
+  // Team starts collapsed (manifest); a captain gets it opened once.
+  const openTeamForCaptain = async (): Promise<void> => {
+    if (role() !== "captain" || context.globalState.get(TEAM_OPENED_FOR_CAPTAIN)) return;
+    await context.globalState.update(TEAM_OPENED_FOR_CAPTAIN, true);
+    await vscode.commands.executeCommand("branchguard.team.focus");
+  };
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("branchguard.role")) void openTeamForCaptain();
+    }),
+  );
+
+  // First install: show the walkthrough once.
+  if (!context.globalState.get(WALKTHROUGH_SHOWN)) {
+    await context.globalState.update(WALKTHROUGH_SHOWN, true);
+    void vscode.commands.executeCommand("workbench.action.openWalkthrough", walkthroughId, false);
+  }
 
   // Saving a file: refresh without the network, debounced.
   let saveTimer: NodeJS.Timeout | undefined;
@@ -94,6 +128,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   await state.refresh("auto");
+  if (state.dir && !state.noRepo) await openTeamForCaptain();
 }
 
 export function deactivate(): void {}

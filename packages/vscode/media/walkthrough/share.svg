@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" role="img" aria-label="A laptop uploading changes to the cloud">
+  <title>A laptop uploading changes to the cloud</title>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+    <rect x="70" y="110" width="120" height="76" rx="6" stroke="var(--vscode-foreground)"/>
+    <path d="M56 200h148" stroke="var(--vscode-foreground)"/>
+    <path d="M250 120c-22 0-34-14-34-30s14-30 32-30c6-18 22-28 40-28 24 0 42 18 44 40 16 2 28 14 28 30 0 10-8 18-18 18" stroke="var(--vscode-textLink-foreground)"/>
+    <path d="M290 170v-70M266 124l24-24 24 24" stroke="var(--vscode-textLink-foreground)"/>
+  </g>
+</svg>

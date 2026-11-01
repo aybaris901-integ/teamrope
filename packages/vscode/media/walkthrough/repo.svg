@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" role="img" aria-label="A folder holding a Git repo">
+  <title>A folder holding a Git repo</title>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+    <path d="M90 70h70l16 18h134v110H90z" stroke="var(--vscode-foreground)"/>
+    <circle cx="170" cy="130" r="9" stroke="var(--vscode-textLink-foreground)"/>
+    <circle cx="170" cy="172" r="9" stroke="var(--vscode-textLink-foreground)"/>
+    <circle cx="230" cy="150" r="9" stroke="var(--vscode-textLink-foreground)"/>
+    <path d="M170 139v24M170 160c0-10 30-10 52-10" stroke="var(--vscode-textLink-foreground)"/>
+  </g>
+</svg>

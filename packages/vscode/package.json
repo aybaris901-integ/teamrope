@@ -17,7 +17,8 @@
     "vscode.git"
   ],
   "activationEvents": [
-    "workspaceContains:.git"
+    "workspaceContains:.git",
+    "onStartupFinished"
   ],
   "contributes": {
     "viewsContainers": {
@@ -38,7 +39,8 @@
         },
         {
           "id": "branchguard.team",
-          "name": "Team"
+          "name": "Team",
+          "visibility": "collapsed"
         },
         {
           "id": "branchguard.activity",
@@ -98,10 +100,26 @@
         "title": "Compare",
         "category": "branchguard",
         "icon": "$(diff)"
+      },
+      {
+        "command": "branchguard.setRole",
+        "title": "Set my role",
+        "category": "branchguard"
+      },
+      {
+        "command": "branchguard.openWalkthrough",
+        "title": "Get started with branchguard",
+        "category": "branchguard",
+        "icon": "$(question)"
       }
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "branchguard.openWalkthrough",
+          "when": "view == branchguard.you",
+          "group": "navigation@0"
+        },
         {
           "command": "branchguard.refresh",
           "when": "view == branchguard.you || view == branchguard.team",
@@ -152,9 +170,115 @@
         {
           "command": "branchguard.compare",
           "when": "false"
+        },
+        {
+          "command": "branchguard.setRole",
+          "when": "false"
         }
       ]
-    }
+    },
+    "configuration": {
+      "title": "branchguard",
+      "properties": {
+        "branchguard.role": {
+          "type": "string",
+          "enum": [
+            "captain",
+            "member"
+          ],
+          "enumDescriptions": [
+            "You keep an eye on the whole team: the Team view opens expanded.",
+            "You focus on your own work: the Team view starts collapsed."
+          ],
+          "default": "member",
+          "description": "Are you the team's captain or a team member?"
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "getStarted",
+        "title": "Get started with branchguard",
+        "description": "Five small habits that keep your team's repo safe during a hackathon.",
+        "steps": [
+          {
+            "id": "role",
+            "title": "Are you the captain?",
+            "description": "The captain keeps an eye on the whole team and helps when something goes wrong. Everyone else can focus on their own work. You can change this later in Settings.\n[I'm the captain](command:branchguard.setRole?%5B%22captain%22%5D)\n[I'm a team member](command:branchguard.setRole?%5B%22member%22%5D)",
+            "media": {
+              "svg": "media/walkthrough/role.svg",
+              "altText": "A captain with a flag next to a team member"
+            },
+            "completionEvents": [
+              "onSettingChanged:branchguard.role"
+            ]
+          },
+          {
+            "id": "repo",
+            "title": "Open your team's repo",
+            "description": "branchguard works inside your team's Git repo. Open the folder you already have, or clone it from GitHub.\n[Open Folder](command:vscode.openFolder)\n[Clone Repository](command:git.clone)",
+            "media": {
+              "svg": "media/walkthrough/repo.svg",
+              "altText": "A folder holding a Git repo"
+            },
+            "completionEvents": [
+              "onContext:branchguard.hasRepo",
+              "onCommand:vscode.openFolder",
+              "onCommand:git.clone"
+            ]
+          },
+          {
+            "id": "startTask",
+            "title": "Start a task",
+            "description": "Every task gets its own branch, so nobody breaks anyone else's work. Start task makes the branch and uploads it for you.\n[Start task](command:branchguard.startTask)",
+            "media": {
+              "svg": "media/walkthrough/task.svg",
+              "altText": "Your own branch leaving the shared main line"
+            },
+            "completionEvents": [
+              "onCommand:branchguard.startTask"
+            ]
+          },
+          {
+            "id": "share",
+            "title": "Share changes every 30–60 minutes",
+            "description": "Sharing saves your work and uploads it to your own branch. Your team sees what you're doing, and nothing gets lost if your laptop dies.\n[Share changes](command:branchguard.save)",
+            "media": {
+              "svg": "media/walkthrough/share.svg",
+              "altText": "A laptop uploading changes to the cloud"
+            },
+            "completionEvents": [
+              "onCommand:branchguard.save"
+            ]
+          },
+          {
+            "id": "sync",
+            "title": "An hour before the deadline: Sync",
+            "description": "Sync brings the latest main into your branch, but only if it merges cleanly. Doing it early means conflicts show up while there's still time to fix them.\n[Sync](command:branchguard.sync)",
+            "media": {
+              "svg": "media/walkthrough/sync.svg",
+              "altText": "A clock before the deadline and two lines merging"
+            },
+            "completionEvents": [
+              "onCommand:branchguard.sync"
+            ]
+          },
+          {
+            "id": "team",
+            "title": "Watch Team",
+            "description": "Team lists everyone else's problems: conflicts with main, two people changing the same code, and work nobody has shared for a while. Each problem says who should do what, and Copy message gives you a text to send.\n[Open Team](command:branchguard.teamStatus)",
+            "media": {
+              "svg": "media/walkthrough/team.svg",
+              "altText": "A team list with one problem flagged"
+            },
+            "when": "config.branchguard.role == captain",
+            "completionEvents": [
+              "onCommand:branchguard.teamStatus"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "build": "tsc --noEmit -p . && node esbuild.mjs",

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" role="img" aria-label="Your own branch leaving the shared main line">
+  <title>Your own branch leaving the shared main line</title>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+    <path d="M50 160h300" stroke="var(--vscode-descriptionForeground)"/>
+    <circle cx="110" cy="160" r="9" stroke="var(--vscode-descriptionForeground)"/>
+    <circle cx="300" cy="160" r="9" stroke="var(--vscode-descriptionForeground)"/>
+    <path d="M150 160c40 0 40-70 90-70h60" stroke="var(--vscode-textLink-foreground)"/>
+    <circle cx="250" cy="90" r="9" stroke="var(--vscode-textLink-foreground)"/>
+    <circle cx="310" cy="90" r="9" stroke="var(--vscode-textLink-foreground)"/>
+  </g>
+</svg>

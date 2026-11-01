@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" role="img" aria-label="A clock before the deadline and two lines merging">
+  <title>A clock before the deadline and two lines merging</title>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+    <circle cx="300" cy="80" r="38" stroke="var(--vscode-editorWarning-foreground)"/>
+    <path d="M300 56v24l16 10" stroke="var(--vscode-editorWarning-foreground)"/>
+    <path d="M40 180h220" stroke="var(--vscode-descriptionForeground)"/>
+    <path d="M60 120c60 0 80 60 150 60" stroke="var(--vscode-textLink-foreground)"/>
+    <circle cx="210" cy="180" r="9" stroke="var(--vscode-textLink-foreground)"/>
+  </g>
+</svg>

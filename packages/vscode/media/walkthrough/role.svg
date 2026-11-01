@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" role="img" aria-label="A captain with a flag next to a team member">
+  <title>A captain with a flag next to a team member</title>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+    <circle cx="140" cy="90" r="26" stroke="var(--vscode-textLink-foreground)"/>
+    <path d="M96 190c0-28 20-48 44-48s44 20 44 48" stroke="var(--vscode-textLink-foreground)"/>
+    <path d="M140 64V30l30 10-30 10" stroke="var(--vscode-textLink-foreground)"/>
+    <circle cx="260" cy="96" r="22" stroke="var(--vscode-descriptionForeground)"/>
+    <path d="M222 190c0-24 17-42 38-42s38 18 38 42" stroke="var(--vscode-descriptionForeground)"/>
+  </g>
+</svg>

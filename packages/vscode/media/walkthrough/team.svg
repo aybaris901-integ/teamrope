@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" role="img" aria-label="A team list with one problem flagged">
+  <title>A team list with one problem flagged</title>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="4">
+    <circle cx="90" cy="70" r="14" stroke="var(--vscode-textLink-foreground)"/>
+    <path d="M120 70h170" stroke="var(--vscode-descriptionForeground)"/>
+    <circle cx="90" cy="120" r="14" stroke="var(--vscode-textLink-foreground)"/>
+    <path d="M120 120h120" stroke="var(--vscode-descriptionForeground)"/>
+    <path d="M300 104l18 32h-36z" stroke="var(--vscode-editorWarning-foreground)"/>
+    <path d="M300 116v8" stroke="var(--vscode-editorWarning-foreground)"/>
+    <circle cx="90" cy="170" r="14" stroke="var(--vscode-textLink-foreground)"/>
+    <path d="M120 170h150" stroke="var(--vscode-descriptionForeground)"/>
+  </g>
+</svg>

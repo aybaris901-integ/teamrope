@@ -161,5 +161,7 @@ export class BranchguardState {
   private setNoRepo(value: boolean): void {
     this.noRepo = value;
     void vscode.commands.executeCommand("setContext", "branchguard.noRepo", value);
+    // The walkthrough's "Open your team's repo" step completes on this.
+    void vscode.commands.executeCommand("setContext", "branchguard.hasRepo", !value && this.dir !== undefined);
   }
 }
