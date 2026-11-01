@@ -81,14 +81,14 @@ describe("planSave + executeSave", () => {
 
   test("a leftover .vsix is left out and *.vsix goes into .gitignore", async () => {
     const dir = pg.clone("carol");
-    writeFileSync(path.join(dir, "branchguard-0.0.1.vsix"), Buffer.from("PK\u0003\u0004 fake zip"));
+    writeFileSync(path.join(dir, "teamrope-0.0.1.vsix"), Buffer.from("PK\u0003\u0004 fake zip"));
     const plan = await planSave(dir);
     expect(plan.risky).toEqual([
-      { kind: "generated", path: "branchguard-0.0.1.vsix", fileCount: 1, ignoreEntry: "*.vsix" },
+      { kind: "generated", path: "teamrope-0.0.1.vsix", fileCount: 1, ignoreEntry: "*.vsix" },
     ]);
     expect(isPlainSave(plan)).toBe(false);
     expect(plan.steps[0]).toMatchObject({ kind: "ignore", entries: ["*.vsix"] });
-    expect(explainSavePlan(plan)).toContain("Leaving out branchguard-0.0.1.vsix and adding *.vsix to .gitignore.");
+    expect(explainSavePlan(plan)).toContain("Leaving out teamrope-0.0.1.vsix and adding *.vsix to .gitignore.");
 
     const result = await executeSave(plan);
     expect(result.ok).toBe(true);

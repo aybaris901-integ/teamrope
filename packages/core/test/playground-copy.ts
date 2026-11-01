@@ -20,7 +20,7 @@ export function git(dir: string, ...args: string[]): string {
 }
 
 export function copyPlayground(): PlaygroundCopy {
-  const root = mkdtempSync(path.join(tmpdir(), "branchguard-playground-"));
+  const root = mkdtempSync(path.join(tmpdir(), "teamrope-playground-"));
   execFileSync("cp", ["-a", `${PLAYGROUND}/.`, root]);
 
   // Point each clone at the copied origin (eve's broken URL stays broken).

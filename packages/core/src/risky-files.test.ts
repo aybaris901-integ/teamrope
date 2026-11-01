@@ -11,7 +11,7 @@ import {
 
 let root = "";
 beforeEach(() => {
-  root = mkdtempSync(path.join(tmpdir(), "branchguard-risky-"));
+  root = mkdtempSync(path.join(tmpdir(), "teamrope-risky-"));
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
@@ -69,7 +69,7 @@ describe("findRiskyFiles", () => {
   });
 
   test.each([
-    ["packages/vscode/branchguard-0.0.1.vsix", "*.vsix"],
+    ["packages/vscode/teamrope-0.0.1.vsix", "*.vsix"],
     ["release.zip", "*.zip"],
     ["dist-linux.TAR.GZ", "*.tar.gz"],
     ["setup.exe", "*.exe"],

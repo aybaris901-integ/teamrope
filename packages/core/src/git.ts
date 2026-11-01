@@ -33,8 +33,8 @@ export class BlockedEnvVarError extends Error {
     const variable = /Use of "([^"]+)"/.exec(simpleGitMessage)?.[1] ?? null;
     super(
       variable
-        ? `Your environment sets ${variable}, which can change what Git runs, so branchguard won't pass it to Git. Unset it in this terminal (\`unset ${variable}\`) and try again.`
-        : `Your environment has a Git setting branchguard won't pass to Git (${simpleGitMessage}). Remove it and try again.`,
+        ? `Your environment sets ${variable}, which can change what Git runs, so TeamRope won't pass it to Git. Unset it in this terminal (\`unset ${variable}\`) and try again.`
+        : `Your environment has a Git setting TeamRope won't pass to Git (${simpleGitMessage}). Remove it and try again.`,
     );
     this.name = "BlockedEnvVarError";
     this.variable = variable;
@@ -198,7 +198,7 @@ function backupTimestamp(date = new Date()): string {
 }
 
 /**
- * Saves `commit` as refs/branchguard/backup/<timestamp>-<what> before a ref
+ * Saves `commit` as refs/teamrope/backup/<timestamp>-<what> before a ref
  * is moved, so the old position can always be restored. Never overwrites an
  * existing backup. Returns the backup ref's name.
  */
@@ -207,9 +207,9 @@ export async function createBackupRef(
   what: string,
   commit: string,
 ): Promise<string> {
-  const ref = `refs/branchguard/backup/${backupTimestamp()}-${what.replaceAll("/", "-")}`;
+  const ref = `refs/teamrope/backup/${backupTimestamp()}-${what.replaceAll("/", "-")}`;
   // An empty old value makes update-ref fail if the ref already exists.
-  await git.raw(["update-ref", "-m", "branchguard backup", ref, commit, ""]);
+  await git.raw(["update-ref", "-m", "teamrope backup", ref, commit, ""]);
   return ref;
 }
 

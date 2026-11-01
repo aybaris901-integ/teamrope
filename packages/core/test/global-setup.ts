@@ -9,7 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const GITCONFIG = `[user]
-\tname = branchguard tests
+\tname = teamrope tests
 \temail = tests@example.com
 [init]
 \tdefaultBranch = main
@@ -19,7 +19,7 @@ export default function setup(): () => void {
   const script = fileURLToPath(new URL("../../../scripts/broken-repo.sh", import.meta.url));
   execFileSync("bash", [script], { stdio: ["ignore", "ignore", "inherit"] });
 
-  const home = mkdtempSync(path.join(tmpdir(), "branchguard-test-home-"));
+  const home = mkdtempSync(path.join(tmpdir(), "teamrope-test-home-"));
   writeFileSync(path.join(home, ".gitconfig"), GITCONFIG);
   // Git also reads $XDG_CONFIG_HOME/git/config; keep that inside the temp HOME too.
   mkdirSync(path.join(home, ".config"));

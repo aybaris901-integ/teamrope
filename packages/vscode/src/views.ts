@@ -10,11 +10,11 @@ import {
   statusBarSummary,
   type MyProblem,
   type RemoteBranch,
-} from "@branchguard/core";
+} from "@teamrope/core";
 import * as vscode from "vscode";
 import type { Avatars } from "./avatars.js";
 import { compareTargetFor } from "./problem-actions.js";
-import type { BranchguardState } from "./state.js";
+import type { TeamRopeState } from "./state.js";
 
 /** A tree item that may carry the problem it shows (for Compare / Copy message). */
 export type Item = vscode.TreeItem & { children?: Item[]; problem?: MyProblem };
@@ -28,7 +28,7 @@ abstract class Provider implements vscode.TreeDataProvider<Item> {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.changed.event;
 
-  constructor(protected readonly state: BranchguardState) {
+  constructor(protected readonly state: TeamRopeState) {
     state.onDidChange(() => this.changed.fire());
   }
 
@@ -54,7 +54,7 @@ const PROBLEM_ICONS: Record<MyProblem["kind"], vscode.ThemeIcon> = {
 /** Problems first (each with Compare / Copy message), then one row per member. */
 export class TeamView extends Provider {
   constructor(
-    state: BranchguardState,
+    state: TeamRopeState,
     private readonly avatars: Avatars,
   ) {
     super(state);
@@ -71,7 +71,7 @@ export class TeamView extends Provider {
         tooltip: [explainMyProblem(problem, now), ...more.map((p) => `Also: ${explainMyProblem(p, now)}`)].join("\n\n"),
         iconPath: PROBLEM_ICONS[problem.kind],
         contextValue: compareTargetFor(problem) ? "problem copyable comparable" : "problem copyable",
-        command: { command: "branchguard.showProblem", title: "Show details", arguments: [problem] },
+        command: { command: "teamrope.showProblem", title: "Show details", arguments: [problem] },
         problem,
       }),
     );
@@ -115,7 +115,7 @@ export class TeamView extends Provider {
 /** The last few commits across the team repo's branches. */
 export class ActivityView extends Provider {
   constructor(
-    state: BranchguardState,
+    state: TeamRopeState,
     private readonly avatars: Avatars,
   ) {
     super(state);

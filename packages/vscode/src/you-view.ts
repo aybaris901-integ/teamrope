@@ -10,10 +10,10 @@ import {
   shortNextAction,
   type MyProblem,
   type Severity,
-} from "@branchguard/core";
+} from "@teamrope/core";
 import * as vscode from "vscode";
 import { compareTargetFor } from "./problem-actions.js";
-import type { BranchguardState } from "./state.js";
+import type { TeamRopeState } from "./state.js";
 
 interface ButtonModel {
   label: string;
@@ -45,25 +45,25 @@ type FromPage =
 
 /** The only commands the page may run. */
 const ALLOWED_COMMANDS = new Set([
-  "branchguard.startTask",
-  "branchguard.save",
-  "branchguard.sync",
-  "branchguard.runNext",
-  "branchguard.refresh",
+  "teamrope.startTask",
+  "teamrope.save",
+  "teamrope.sync",
+  "teamrope.runNext",
+  "teamrope.refresh",
   "vscode.openFolder",
   "git.clone",
 ]);
 
 const ACTIONS: ButtonModel[] = [
-  { label: "Start task", command: "branchguard.startTask", icon: "add" },
-  { label: "Share changes", command: "branchguard.save", icon: "cloud-upload" },
-  { label: "Sync", command: "branchguard.sync", icon: "sync" },
+  { label: "Start task", command: "teamrope.startTask", icon: "add" },
+  { label: "Share changes", command: "teamrope.save", icon: "cloud-upload" },
+  { label: "Sync", command: "teamrope.sync", icon: "sync" },
 ];
 
 const NEXT_COMMANDS: Record<string, string> = {
-  startTask: "branchguard.startTask",
-  save: "branchguard.save",
-  sync: "branchguard.sync",
+  startTask: "teamrope.startTask",
+  save: "teamrope.save",
+  sync: "teamrope.sync",
 };
 
 export class YouView implements vscode.WebviewViewProvider {
@@ -72,7 +72,7 @@ export class YouView implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly extensionUri: vscode.Uri,
-    private readonly state: BranchguardState,
+    private readonly state: TeamRopeState,
     /** Called whenever the view is shown: opening it opts the workspace in. */
     private readonly onShown: () => void,
     private readonly onProblem: (problem: MyProblem, action: "compare" | "copy" | "details") => void,
@@ -145,8 +145,8 @@ export class YouView implements vscode.WebviewViewProvider {
     const primary: MainButtonModel = nextCommand
       ? { label: shortNextAction(d) ?? "", command: nextCommand, icon: "arrow-right", style: "primary" }
       : d.nextAction
-        ? { label: "What should I do?", command: "branchguard.runNext", icon: "question", style: "primary" }
-        : { label: "Start task", command: "branchguard.startTask", icon: "add", style: "secondary" };
+        ? { label: "What should I do?", command: "teamrope.runNext", icon: "question", style: "primary" }
+        : { label: "Start task", command: "teamrope.startTask", icon: "add", style: "secondary" };
     return {
       state: "ready",
       severity,

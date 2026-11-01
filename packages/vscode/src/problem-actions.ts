@@ -1,5 +1,5 @@
 // Compare and Copy message for a problem: what to diff, what to copy.
-import { problemMessage, type MyProblem } from "@branchguard/core";
+import { problemMessage, type MyProblem } from "@teamrope/core";
 import * as vscode from "vscode";
 
 const REMOTE = "refs/remotes/origin/";
@@ -58,7 +58,7 @@ export function copyTextFor(problem: MyProblem, myBranch: string, mainBranch = "
 }
 
 /** Read-only documents with a file's content at a ref, for vscode.diff. */
-export const GIT_SCHEME = "branchguard-git";
+export const GIT_SCHEME = "teamrope-git";
 
 export function refUri(dir: string, ref: string, file: string, label: string): vscode.Uri {
   return vscode.Uri.from({

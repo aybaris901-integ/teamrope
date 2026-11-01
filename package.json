@@ -1,5 +1,5 @@
 {
-  "name": "branchguard-monorepo",
+  "name": "teamrope-monorepo",
   "private": true,
   "type": "module",
   "engines": {
@@ -11,7 +11,7 @@
     "packages/vscode"
   ],
   "scripts": {
-    "build": "tsc -b && npm run build -w branchguard",
+    "build": "tsc -b && npm run build -w teamrope",
     "test": "npm test --workspaces --if-present",
     "clean": "tsc -b --clean"
   },

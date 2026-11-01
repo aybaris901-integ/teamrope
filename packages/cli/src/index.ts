@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Thin CLI over @branchguard/core, used for manual testing.
+// Thin CLI over @teamrope/core, used for manual testing.
 // No Git logic here: every command calls core.
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -27,20 +27,20 @@ import {
   secretIgnoreQuestion,
   slugify,
   type SavePlan,
-} from "@branchguard/core";
+} from "@teamrope/core";
 
 const USAGE = `Usage:
-  branchguard diagnose [dir]   show where you stand
-  branchguard start [task] [--name <name>] [--yes]
+  teamrope diagnose [dir]   show where you stand
+  teamrope start [task] [--name <name>] [--yes]
                                start a new task on your own branch
                                --name  your name for branch names (skips the question)
                                --yes   don't ask anything, accept the defaults
-  branchguard save [-m <message>] [--name <name>] [--yes]
+  teamrope save [-m <message>] [--name <name>] [--yes]
                                share changes: commit your work and upload it to your own branch
                                -m      commit message (default: made from the file names)
                                --yes   accept the defaults: risky files are left out
-  branchguard sync [--yes]     bring the latest main into your branch (only if it combines cleanly)
-  branchguard status [dir]     the whole team: who's where, and whose work would conflict`;
+  teamrope sync [--yes]     bring the latest main into your branch (only if it combines cleanly)
+  teamrope status [dir]     the whole team: who's where, and whose work would conflict`;
 
 async function runDiagnose(dirArg: string | undefined): Promise<void> {
   const dir = path.resolve(dirArg ?? ".");

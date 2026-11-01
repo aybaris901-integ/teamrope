@@ -30,7 +30,7 @@ function expectUntouched(dir: string, head: string): void {
 
 function expectNoScratchWorktree(dir: string): void {
   expect(git(dir, "worktree", "list", "--porcelain").match(/^worktree /gm)).toHaveLength(1);
-  const scratch = path.join(dir, ".git", "branchguard");
+  const scratch = path.join(dir, ".git", "teamrope");
   expect(existsSync(scratch) ? readdirSync(scratch) : []).toEqual([]);
 }
 

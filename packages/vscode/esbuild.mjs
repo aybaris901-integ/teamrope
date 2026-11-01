@@ -1,4 +1,4 @@
-// Bundles the extension and @branchguard/core (with simple-git) into one file,
+// Bundles the extension and @teamrope/core (with simple-git) into one file,
 // and copies the codicon font for the webview (served locally, no CDN).
 import { copyFileSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";

@@ -16,7 +16,9 @@ import type { RemoteProblem } from "./remote-problem.js";
 import { cliRemoteOps, type RemoteOps, type RemoteOptions } from "./remote-ops.js";
 
 /** Repo-local config key holding the member's name (the branch prefix). */
-export const MEMBER_NAME_KEY = "branchguard.name";
+export const MEMBER_NAME_KEY = "teamrope.name";
+/** The same key from before the rename to TeamRope; read only, never written. */
+const LEGACY_MEMBER_NAME_KEY = "branchguard.name";
 const DEFAULT_TASK = "work";
 const MAX_SLUG_LENGTH = 40;
 
@@ -112,7 +114,8 @@ export async function readMemberName(
 async function readMemberNameWith(
   git: SimpleGit,
 ): Promise<{ saved: string | null; suggestion: string }> {
-  const saved = slugify((await readConfig(git, MEMBER_NAME_KEY)) ?? "") || null;
+  const value = (await readConfig(git, MEMBER_NAME_KEY)) ?? (await readConfig(git, LEGACY_MEMBER_NAME_KEY));
+  const saved = slugify(value ?? "") || null;
   const suggestion = slugify((await readConfig(git, "user.name")) ?? "") || "me";
   return { saved, suggestion };
 }
@@ -299,7 +302,7 @@ export async function runStartTaskStep(
       const ref = await createBackupRef(git, plan.mainBranch, step.from);
       backups.push({ ref, of: plan.mainBranch });
       // The old value makes this fail if main moved since the plan was made.
-      await git.raw(["update-ref", "-m", "branchguard: start task", mainRef, step.to, step.from]);
+      await git.raw(["update-ref", "-m", "teamrope: start task", mainRef, step.to, step.from]);
       return;
     }
     case "push":

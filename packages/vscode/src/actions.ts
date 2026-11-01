@@ -23,11 +23,11 @@ import {
   slugify,
   type MyProblem,
   type SavePlan,
-} from "@branchguard/core";
+} from "@teamrope/core";
 import * as vscode from "vscode";
 import { compareTargetFor, copyTextFor, refUri, type CompareSide } from "./problem-actions.js";
 import type { RepoContext } from "./repo.js";
-import type { BranchguardState } from "./state.js";
+import type { TeamRopeState } from "./state.js";
 import {
   askMemberName,
   askShareMessage,
@@ -43,7 +43,7 @@ import type { Item } from "./views.js";
 
 export class Actions {
   constructor(
-    private readonly state: BranchguardState,
+    private readonly state: TeamRopeState,
     private readonly output: Output,
   ) {}
 
@@ -153,14 +153,14 @@ export class Actions {
     const gist = lines.filter((line) => !line.startsWith("  "));
     await vscode.window.showWarningMessage(gist[0] ?? "Sync", {
       modal: true,
-      detail: gist.slice(1).join("\n\n") + "\n\nThe conflicting lines are in the branchguard output.",
+      detail: gist.slice(1).join("\n\n") + "\n\nThe conflicting lines are in the TeamRope output.",
     });
   }
 
   async teamStatus(): Promise<void> {
     if (!this.requireRepo()) return;
     await withProgress("Checking the team…", () => this.state.refresh("force"));
-    await vscode.commands.executeCommand("branchguard.team.focus");
+    await vscode.commands.executeCommand("teamrope.team.focus");
     const status = this.state.team;
     if (status) this.output.section("Team status", explainTeamStatus(status));
     else if (this.state.teamError) void vscode.window.showWarningMessage(this.state.teamError);

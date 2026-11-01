@@ -1,10 +1,10 @@
-// branchguard for VS Code: a thin UI over @branchguard/core.
-import { configureGit, fileAtRef } from "@branchguard/core";
+// TeamRope for VS Code: a thin UI over @teamrope/core.
+import { configureGit, fileAtRef } from "@teamrope/core";
 import * as vscode from "vscode";
 import { Actions } from "./actions.js";
 import { Avatars } from "./avatars.js";
 import { getGitApi } from "./git-api.js";
-import { BranchguardState } from "./state.js";
+import { TeamRopeState } from "./state.js";
 import { createStatusBar } from "./status-bar.js";
 import { watchConflicts } from "./conflict-notice.js";
 import { EditorHints } from "./editor-hints.js";
@@ -14,15 +14,15 @@ import { ActivityView, TeamView } from "./views.js";
 import { YouView } from "./you-view.js";
 
 const SAVE_DEBOUNCE_MS = 1500;
-const WALKTHROUGH_SHOWN = "branchguard.walkthroughShown";
-const TEAM_OPENED_FOR_CAPTAIN = "branchguard.teamOpenedForCaptain";
-/** Per workspace: the user opened the branchguard view here, so we may fetch and show status. */
-const VIEW_OPENED = "branchguard.viewOpened";
+const WALKTHROUGH_SHOWN = "teamrope.walkthroughShown";
+const TEAM_OPENED_FOR_CAPTAIN = "teamrope.teamOpenedForCaptain";
+/** Per workspace: the user opened the TeamRope view here, so we may fetch and show status. */
+const VIEW_OPENED = "teamrope.viewOpened";
 
 type Role = "captain" | "member";
 
 function role(): Role {
-  return vscode.workspace.getConfiguration("branchguard").get<Role>("role", "member");
+  return vscode.workspace.getConfiguration("teamrope").get<Role>("role", "member");
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -34,12 +34,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const { binary } = configureGit({ binary: gitApi?.git.path });
   output.log(`Using git: ${binary}${gitApi ? "" : " (VS Code's Git extension isn't available)"}`);
 
-  const state = new BranchguardState(
+  const state = new TeamRopeState(
     gitApi,
     (line) => output.log(line),
     () => context.workspaceState.get<boolean>(VIEW_OPENED, false),
   );
-  // Opening branchguard (a view, or one of its actions) opts this workspace in.
+  // Opening TeamRope (a view, or one of its actions) opts this workspace in.
   const optIn = (): void => {
     if (context.workspaceState.get<boolean>(VIEW_OPENED, false)) return;
     void context.workspaceState.update(VIEW_OPENED, true).then(() => state.refresh("auto"));
@@ -48,14 +48,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const avatars = new Avatars(context.globalStorageUri);
   const you = new YouView(context.extensionUri, state, optIn, (problem, action) => {
-    const id = { compare: "branchguard.compare", copy: "branchguard.copyMessage", details: "branchguard.showProblem" }[action];
+    const id = { compare: "teamrope.compare", copy: "teamrope.copyMessage", details: "teamrope.showProblem" }[action];
     void vscode.commands.executeCommand(id, problem);
   });
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider("branchguard.you", you),
+    vscode.window.registerWebviewViewProvider("teamrope.you", you),
     ...[
-      vscode.window.createTreeView("branchguard.team", { treeDataProvider: new TeamView(state, avatars) }),
-      vscode.window.createTreeView("branchguard.activity", { treeDataProvider: new ActivityView(state, avatars) }),
+      vscode.window.createTreeView("teamrope.team", { treeDataProvider: new TeamView(state, avatars) }),
+      vscode.window.createTreeView("teamrope.activity", { treeDataProvider: new ActivityView(state, avatars) }),
     ].flatMap((tree) => [
       tree,
       tree.onDidChangeVisibility((event) => {
@@ -89,38 +89,38 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }),
     );
   };
-  /** Running one of branchguard's actions also opts this workspace in. */
+  /** Running one of TeamRope's actions also opts this workspace in. */
   const optingIn = (run: () => Promise<void>) => async (): Promise<void> => {
     optIn();
     await run();
   };
-  command("branchguard.startTask", optingIn(() => actions.startTask()));
-  command("branchguard.save", optingIn(() => actions.save()));
-  command("branchguard.sync", optingIn(() => actions.sync()));
-  command("branchguard.teamStatus", optingIn(() => actions.teamStatus()));
-  command("branchguard.runNext", () => actions.runNext());
-  command("branchguard.showProblem", (problem: never) => actions.showProblem(problem));
-  command("branchguard.copyMessage", (target: never) => actions.copyMessage(target));
-  command("branchguard.compare", (target: never) => actions.compare(target));
-  command("branchguard.refresh", optingIn(() => state.refresh("force")));
+  command("teamrope.startTask", optingIn(() => actions.startTask()));
+  command("teamrope.save", optingIn(() => actions.save()));
+  command("teamrope.sync", optingIn(() => actions.sync()));
+  command("teamrope.teamStatus", optingIn(() => actions.teamStatus()));
+  command("teamrope.runNext", () => actions.runNext());
+  command("teamrope.showProblem", (problem: never) => actions.showProblem(problem));
+  command("teamrope.copyMessage", (target: never) => actions.copyMessage(target));
+  command("teamrope.compare", (target: never) => actions.compare(target));
+  command("teamrope.refresh", optingIn(() => state.refresh("force")));
   const walkthroughId = `${context.extension.id}#getStarted`;
-  command("branchguard.openWalkthrough", async () => {
+  command("teamrope.openWalkthrough", async () => {
     await vscode.commands.executeCommand("workbench.action.openWalkthrough", walkthroughId, false);
   });
-  command("branchguard.setRole", async (value: never) => {
+  command("teamrope.setRole", async (value: never) => {
     const chosen: Role = value === "captain" ? "captain" : "member";
-    await vscode.workspace.getConfiguration("branchguard").update("role", chosen, vscode.ConfigurationTarget.Global);
+    await vscode.workspace.getConfiguration("teamrope").update("role", chosen, vscode.ConfigurationTarget.Global);
   });
 
   // Team starts collapsed (manifest); a captain gets it opened once.
   const openTeamForCaptain = async (): Promise<void> => {
     if (role() !== "captain" || context.globalState.get(TEAM_OPENED_FOR_CAPTAIN)) return;
     await context.globalState.update(TEAM_OPENED_FOR_CAPTAIN, true);
-    await vscode.commands.executeCommand("branchguard.team.focus");
+    await vscode.commands.executeCommand("teamrope.team.focus");
   };
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration("branchguard.role") && state.active) void openTeamForCaptain();
+      if (event.affectsConfiguration("teamrope.role") && state.active) void openTeamForCaptain();
     }),
   );
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds ./playground: a local bare "origin" and three clones in different
-# broken states, for testing branchguard against real repos.
+# broken states, for testing TeamRope against real repos.
 #
 #   playground/origin.git  bare repo, main has a few commits
 #   playground/alice       on alice/feature, clean, up to date with main, pushed
@@ -33,7 +33,7 @@ export GIT_CONFIG_GLOBAL=/dev/null
 export GIT_CONFIG_NOSYSTEM=1
 
 # Only ever delete the playground folder inside this repo: make sure ROOT
-# really is the branchguard repo before touching anything.
+# really is the TeamRope repo before touching anything.
 refuse() {
   echo "Refusing to delete $PLAYGROUND: $1" >&2
   exit 1

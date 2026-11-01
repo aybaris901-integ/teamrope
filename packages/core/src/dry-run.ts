@@ -78,7 +78,7 @@ async function worktreeConflicts(
   theirs: string,
 ): Promise<PredictedConflict[]> {
   const gitDir = path.resolve(dir, (await git.revparse(["--git-common-dir"])).trim());
-  const tmp = path.join(gitDir, "branchguard", `dry-run-${Date.now()}-${process.pid}`);
+  const tmp = path.join(gitDir, "teamrope", `dry-run-${Date.now()}-${process.pid}`);
   mkdirSync(path.dirname(tmp), { recursive: true });
   try {
     await git.raw(["worktree", "add", "--detach", "--quiet", tmp, ours]);

@@ -6,11 +6,11 @@ import {
   slugify,
   type RiskyFile,
   type SavePlan,
-} from "@branchguard/core";
+} from "@teamrope/core";
 import * as vscode from "vscode";
 
 export class Output {
-  readonly channel = vscode.window.createOutputChannel("branchguard");
+  readonly channel = vscode.window.createOutputChannel("TeamRope");
 
   log(line: string): void {
     this.channel.appendLine(line);
@@ -42,7 +42,7 @@ export async function confirmPlan(title: string, steps: string[], notes: string[
 /** Asks for the branch-name prefix. Undefined if cancelled. */
 export async function askMemberName(suggestion: string): Promise<string | undefined> {
   return vscode.window.showInputBox({
-    title: "branchguard",
+    title: "TeamRope",
     prompt: "Your name (used for your branches)",
     placeHolder: "e.g. alice",
     value: suggestion,
@@ -56,7 +56,7 @@ export async function askMemberName(suggestion: string): Promise<string | undefi
  */
 export async function askTaskName(memberName: string | null): Promise<string | undefined> {
   return vscode.window.showInputBox({
-    title: "branchguard: Start task",
+    title: "TeamRope: Start task",
     prompt: "What are you working on?",
     placeHolder: "e.g. login-page",
     validateInput: (value) =>

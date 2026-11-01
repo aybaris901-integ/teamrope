@@ -3,7 +3,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { copyPlayground, git, type PlaygroundCopy } from "../test/playground-copy.js";
 import { explainStartTaskRefusal } from "./explain.js";
-import { executeStartTask, planStartTask, slugify, taskSlug } from "./start-task.js";
+import { executeStartTask, planStartTask, readMemberName, slugify, taskSlug } from "./start-task.js";
 
 let pg: PlaygroundCopy;
 beforeEach(() => {
@@ -32,7 +32,7 @@ describe("planStartTask + executeStartTask", () => {
     expect(git(dir, "branch", "--show-current")).toBe("alice/work");
     expect(git(dir, "rev-parse", "HEAD")).toBe(git(dir, "rev-parse", "origin/main"));
     expect(git(dir, "rev-parse", "--abbrev-ref", "@{upstream}")).toBe("origin/alice/work");
-    expect(git(dir, "config", "--local", "branchguard.name")).toBe("alice");
+    expect(git(dir, "config", "--local", "teamrope.name")).toBe("alice");
     expect(git(dir, "rev-parse", "alice/feature")).toBe(featureBefore);
 
     // Name is saved now, and alice/work is taken.
@@ -59,7 +59,7 @@ describe("planStartTask + executeStartTask", () => {
 
     expect(result.backups).toHaveLength(1);
     const backup = result.backups[0]?.ref ?? "";
-    expect(backup).toMatch(/^refs\/branchguard\/backup\/\d{8}-\d{6}-\d{3}-main$/);
+    expect(backup).toMatch(/^refs\/teamrope\/backup\/\d{8}-\d{6}-\d{3}-main$/);
     expect(git(dir, "rev-parse", backup)).toBe(oldMain);
 
     // Pushed his branch, never main.
@@ -202,5 +202,15 @@ describe("taskSlug", () => {
   test("planStartTask uses it", async () => {
     const plan = await planStartTask(pg.clone("alice"), { taskName: "alice" });
     expect(plan.branch).toBe("alice/work");
+  });
+});
+
+describe("member name from before the rename", () => {
+  test("branchguard.name is read when teamrope.name is missing; teamrope.name wins", async () => {
+    const dir = pg.clone("alice");
+    git(dir, "config", "--local", "branchguard.name", "Old Alice");
+    expect(await readMemberName(dir)).toMatchObject({ saved: "old-alice" });
+    git(dir, "config", "--local", "teamrope.name", "alice");
+    expect(await readMemberName(dir)).toMatchObject({ saved: "alice" });
   });
 });

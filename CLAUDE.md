@@ -1,7 +1,7 @@
 CLAUDE.md
 Project
 
-branchguard (working name, will be renamed) — a VS Code extension + CLI that stops beginner hackathon teams from breaking their Git repo under deadline pressure.
+TeamRope — a VS Code extension + CLI that stops beginner hackathon teams from breaking their Git repo under deadline pressure.
 
 The problem: beginners get lost in branches, commit to main, fear conflicts, and the final merge breaks right before submission. Generic AI advice doesn't help because it can't see the real repo state. This tool can.
 
@@ -39,7 +39,7 @@ Git safety rules (non-negotiable)
 
 This tool runs on other people's repos. Losing someone's code is the worst possible bug.
 
-Before any operation that moves, rewrites or discards commits or changes, create a backup ref (e.g. refs/branchguard/backup/<timestamp>) or a stash, and tell the user how to undo.
+Before any operation that moves, rewrites or discards commits or changes, create a backup ref (e.g. refs/teamrope/backup/<timestamp>) or a stash, and tell the user how to undo.
 Never use push --force, reset --hard, branch -D, clean -f or checkout -- . on user work without a backup created first in the same operation.
 Never push to main. Never merge into main automatically.
 Never touch files outside the repo the user opened.
@@ -65,8 +65,8 @@ npm install
 bash scripts/broken-repo.sh   # rebuild test playground
 npm test                      # vitest across workspaces (rebuilds playground first)
 npm run build                 # core + cli (tsc -b), then the extension bundle (esbuild)
-npm run package -w branchguard                                   # build packages/vscode/branchguard-0.0.1.vsix
-code --install-extension packages/vscode/branchguard-0.0.1.vsix --force   # install it locally
+npm run package -w teamrope                                   # build packages/vscode/teamrope-0.0.1.vsix
+code --install-extension packages/vscode/teamrope-0.0.1.vsix --force   # install it locally
 
 Update this section when scripts change.
 

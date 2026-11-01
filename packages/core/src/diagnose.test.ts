@@ -87,7 +87,7 @@ describe("diagnose", () => {
     afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
     test("throws a clear error for a folder that isn't a Git repo", async () => {
-      dir = mkdtempSync(path.join(tmpdir(), "branchguard-not-a-repo-"));
+      dir = mkdtempSync(path.join(tmpdir(), "teamrope-not-a-repo-"));
       await expect(diagnose(dir)).rejects.toThrow(NotAGitRepoError);
       await expect(diagnose(dir)).rejects.toThrow(/is not a Git repository/);
     });

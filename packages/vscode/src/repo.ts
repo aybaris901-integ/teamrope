@@ -1,5 +1,5 @@
 // Which folder we work on, and how we reach its team repo.
-import type { RemoteOps } from "@branchguard/core";
+import type { RemoteOps } from "@teamrope/core";
 import * as vscode from "vscode";
 import type { GitApi, GitApiRepository } from "./git-api.js";
 

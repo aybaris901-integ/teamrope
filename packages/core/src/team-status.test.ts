@@ -133,12 +133,12 @@ describe("teamStatus", () => {
 
   test("read-only: local branches, files and backups are untouched", async () => {
     const dir = pg.clone("carol");
-    const refsBefore = git(dir, "for-each-ref", "refs/heads", "refs/branchguard");
+    const refsBefore = git(dir, "for-each-ref", "refs/heads", "refs/teamrope");
     const statusBefore = git(dir, "status", "--porcelain");
     const headBefore = git(dir, "rev-parse", "HEAD");
 
     await teamStatus(dir);
-    expect(git(dir, "for-each-ref", "refs/heads", "refs/branchguard")).toBe(refsBefore);
+    expect(git(dir, "for-each-ref", "refs/heads", "refs/teamrope")).toBe(refsBefore);
     expect(git(dir, "status", "--porcelain")).toBe(statusBefore);
     expect(git(dir, "rev-parse", "HEAD")).toBe(headBefore);
   });

@@ -1,7 +1,7 @@
 // Hints where people work: file badges, a CodeLens over lines a teammate also
 // changed, and the lines that would conflict with main. Everything reads the
 // cached state (recomputed on file save), never Git: typing and scrolling stay
-// free. Off in repos that haven't opted in, or with branchguard.editorHints off.
+// free. Off in repos that haven't opted in, or with teamrope.editorHints off.
 import path from "node:path";
 import {
   conflictLineHint,
@@ -11,13 +11,13 @@ import {
   overlapHintTitle,
   type MainConflictPreview,
   type MyProblem,
-} from "@branchguard/core";
+} from "@teamrope/core";
 import * as vscode from "vscode";
 import { initials } from "./avatars.js";
-import type { BranchguardState } from "./state.js";
+import type { TeamRopeState } from "./state.js";
 
 export function editorHintsOn(): boolean {
-  return vscode.workspace.getConfiguration("branchguard").get<boolean>("editorHints", true);
+  return vscode.workspace.getConfiguration("teamrope").get<boolean>("editorHints", true);
 }
 
 /** Badge letters: one person's initials, or the first letters of two people. */
@@ -53,7 +53,7 @@ export class EditorHints implements vscode.FileDecorationProvider, vscode.CodeLe
     overviewRulerLane: vscode.OverviewRulerLane.Right,
   });
 
-  constructor(private readonly state: BranchguardState) {}
+  constructor(private readonly state: TeamRopeState) {}
 
   register(): vscode.Disposable {
     const update = (): void => this.update();
@@ -64,7 +64,7 @@ export class EditorHints implements vscode.FileDecorationProvider, vscode.CodeLe
       this.state.onDidChange(update),
       vscode.window.onDidChangeVisibleTextEditors(() => this.drawConflictLines()),
       vscode.workspace.onDidChangeConfiguration((event) => {
-        if (event.affectsConfiguration("branchguard.editorHints")) update();
+        if (event.affectsConfiguration("teamrope.editorHints")) update();
       }),
     );
   }
@@ -140,7 +140,7 @@ export class EditorHints implements vscode.FileDecorationProvider, vscode.CodeLe
       return new vscode.CodeLens(document.lineAt(line).range, {
         title: `$(warning) ${overlapHintTitle(hint, now)}`,
         tooltip: "Compare or copy a message to send",
-        command: "branchguard.showProblem",
+        command: "teamrope.showProblem",
         arguments: [problem],
       });
     });

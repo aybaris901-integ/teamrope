@@ -1,8 +1,8 @@
 // Cached diagnose, Team status, overlaps and the main-conflict preview for the
 // current folder. Fetches (network) at most every FETCH_INTERVAL_MS unless forced;
 // everything else is local and runs on every refresh.
-// Opt-in: nothing runs in a repo until the user has used branchguard there
-// (branchguard.name set, or the branchguard view opened in this workspace).
+// Opt-in: nothing runs in a repo until the user has used TeamRope there
+// (teamrope.name set, or the TeamRope view opened in this workspace).
 import {
   diagnose,
   notSharedSince,
@@ -21,7 +21,7 @@ import {
   type RemoteState,
   type TeamStatus,
   type TheirSideCache,
-} from "@branchguard/core";
+} from "@teamrope/core";
 import * as vscode from "vscode";
 import type { GitApi } from "./git-api.js";
 import { repoContext, type RepoContext } from "./repo.js";
@@ -31,7 +31,7 @@ const FETCH_INTERVAL_MS = 2 * 60 * 1000;
 /** local: no network. auto: fetch if the last fetch is old. force: always fetch. */
 export type RefreshKind = "local" | "auto" | "force";
 
-export class BranchguardState {
+export class TeamRopeState {
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChange = this.changed.event;
 
@@ -62,11 +62,11 @@ export class BranchguardState {
   constructor(
     private readonly gitApi: GitApi | undefined,
     private readonly log: (line: string) => void,
-    /** True once the user opened the branchguard view in this workspace. */
+    /** True once the user opened the TeamRope view in this workspace. */
     private readonly viewOpened: () => boolean,
   ) {}
 
-  /** Opted in: the view was opened here, or this repo has a saved branchguard.name. */
+  /** Opted in: the view was opened here, or this repo has a saved teamrope.name. */
   private async optedIn(dir: string): Promise<boolean> {
     if (this.viewOpened()) return true;
     try {
@@ -181,8 +181,8 @@ export class BranchguardState {
 
   private setNoRepo(value: boolean): void {
     this.noRepo = value;
-    void vscode.commands.executeCommand("setContext", "branchguard.noRepo", value);
+    void vscode.commands.executeCommand("setContext", "teamrope.noRepo", value);
     // The walkthrough's "Open your team's repo" step completes on this.
-    void vscode.commands.executeCommand("setContext", "branchguard.hasRepo", !value && this.dir !== undefined);
+    void vscode.commands.executeCommand("setContext", "teamrope.hasRepo", !value && this.dir !== undefined);
   }
 }
