@@ -640,8 +640,6 @@ export function explainTeamProblem(problem: TeamProblem, mainBranch: string): st
         ? `${ownerA}'s ${a} and ${b} change the same part of ${listWords(files)}. ${ownerA} should settle on one version before either is merged into ${mainBranch}.`
         : `${ownerA} (${a}) and ${ownerB} (${b}) changed the same part of ${listWords(files)}. They should agree on one version now, before either is merged into ${mainBranch}.`;
     }
-    case "noRecentSave":
-      return `${problem.owner} hasn't shared ${problem.branch} for ${problem.hours} h. Ask ${problem.owner} to share changes, even if the work isn't finished.`;
     case "farBehind":
       return `${problem.owner}'s ${problem.branch} is ${problem.behind} commits behind ${mainBranch}. ${problem.owner} should Sync soon, while it's still easy.`;
   }
@@ -663,8 +661,6 @@ function branchStatusLabel(branch: RemoteBranch, status: TeamStatus): string {
         .map((p) => p.overlap.owners[p.overlap.branches[0] === branch.branch ? 1 : 0]);
       return `overlaps ${listWords([...new Set(others)])}`;
     }
-    case "noRecentSave":
-      return `not shared for ${first.hours} h`;
     case "farBehind":
       return "far behind";
   }
@@ -853,8 +849,6 @@ export function shortProblemLabel(problem: MyProblem, mainBranch = "main"): stri
           const more = rest.length > 0 ? ` (+${rest.length})` : "";
           return `${who}: same code in ${fileName(first ?? "")}${more}`;
         }
-        case "noRecentSave":
-          return `${p.owner}: not shared for ${p.hours} h`;
         case "farBehind":
           return `${p.owner}: ${p.behind} behind ${mainBranch}`;
       }
@@ -911,8 +905,6 @@ export function problemMessage(problem: MyProblem, myBranch: string, mainBranch 
           const { branches: [a, b], owners, files } = p.overlap;
           return `Hi ${listWords([...new Set(owners)])}, ${a} and ${b} change the same part of ${listWords(files)}. Can you agree on one version before either is merged into ${mainBranch}?`;
         }
-        case "noRecentSave":
-          return `Hi ${p.owner}, ${p.branch} hasn't been shared for ${p.hours} h. Could you share your changes, even if they aren't finished?`;
         case "farBehind":
           return `Hi ${p.owner}, ${p.branch} is ${p.behind} commits behind ${mainBranch}. Could you Sync soon, while it's still easy?`;
       }
@@ -935,7 +927,6 @@ export function memberStatus(
   for (const p of team) {
     if (p.kind === "conflictWithMain" && mine.has(p.branch)) return `conflict with ${mainBranch}`;
     if (p.kind === "overlap" && p.overlap.branches.some((b) => mine.has(b))) return "overlaps a teammate";
-    if (p.kind === "noRecentSave" && mine.has(p.branch)) return `not shared for ${p.hours} h`;
     if (p.kind === "farBehind" && mine.has(p.branch)) return `${p.behind} behind ${mainBranch}`;
   }
   const latest = branches.reduce<Date | null>((max, b) => (!max || b.lastSave > max ? b.lastSave : max), null);

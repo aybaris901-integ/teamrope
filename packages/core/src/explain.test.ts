@@ -257,19 +257,19 @@ describe("panel text", () => {
         team({ kind: "overlap", overlap: { branches: ["alice/feature", "frank/feature"], owners: ["alice", "frank"], files: ["src/app.js"] } }),
       ),
     ).toBe("alice + frank: same code in app.js");
-    expect(shortProblemLabel(team({ kind: "noRecentSave", branch: "olive/idea", owner: "olive", hours: 3 }))).toBe(
-      "olive: not shared for 3 h",
+    expect(shortProblemLabel(team({ kind: "farBehind", branch: "olive/idea", owner: "olive", behind: 6 }))).toBe(
+      "olive: 6 behind main",
     );
     expect(shortProblemLabel(overlapProblem)).toBe("alice + you: same code in app.js");
   });
 
   test("messages for team problems address the owner without pronouns", () => {
     const text = problemMessage(
-      { kind: "team", problem: { kind: "noRecentSave", branch: "olive/idea", owner: "olive", hours: 3 } },
+      { kind: "team", problem: { kind: "farBehind", branch: "olive/idea", owner: "olive", behind: 6 } },
       "carol/feature",
     );
     expect(text).toBe(
-      "Hi olive, olive/idea hasn't been shared for 3 h. Could you share your changes, even if they aren't finished?",
+      "Hi olive, olive/idea is 6 commits behind main. Could you Sync soon, while it's still easy?",
     );
   });
 });

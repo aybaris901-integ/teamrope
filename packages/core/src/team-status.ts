@@ -9,8 +9,6 @@ import type { RemoteProblem } from "./remote-problem.js";
 
 /** Branches saved (newest commit) within this window are "active". */
 export const ACTIVE_HOURS = 24;
-/** Active branches not saved for this long are flagged. */
-export const STALE_HOURS = 2;
 /** Branches this many commits behind main are flagged. */
 export const FAR_BEHIND_COMMITS = 5;
 
@@ -46,7 +44,6 @@ export interface BranchOverlap {
 export type TeamProblem =
   | { kind: "conflictWithMain"; branch: string; owner: string; conflicts: MainConflict[] }
   | { kind: "overlap"; overlap: BranchOverlap }
-  | { kind: "noRecentSave"; branch: string; owner: string; hours: number }
   | { kind: "farBehind"; branch: string; owner: string; behind: number };
 
 export interface TeamStatus {
@@ -175,7 +172,7 @@ async function findOverlaps(
   return overlaps;
 }
 
-function findProblems(branches: RemoteBranch[], overlaps: BranchOverlap[], now: Date): TeamProblem[] {
+function findProblems(branches: RemoteBranch[], overlaps: BranchOverlap[]): TeamProblem[] {
   const problems: TeamProblem[] = [];
   for (const b of branches) {
     if (b.conflictsWithMain.length > 0) {
@@ -183,12 +180,6 @@ function findProblems(branches: RemoteBranch[], overlaps: BranchOverlap[], now: 
     }
   }
   for (const overlap of overlaps) problems.push({ kind: "overlap", overlap });
-  for (const b of branches) {
-    const hours = Math.floor((now.getTime() - b.lastSave.getTime()) / HOUR_MS);
-    if (hours >= STALE_HOURS) {
-      problems.push({ kind: "noRecentSave", branch: b.branch, owner: b.owner, hours });
-    }
-  }
   for (const b of branches) {
     if (b.behind >= FAR_BEHIND_COMMITS) {
       problems.push({ kind: "farBehind", branch: b.branch, owner: b.owner, behind: b.behind });
@@ -228,6 +219,6 @@ export async function teamStatus(dir: string, options: TeamStatusOptions = {}): 
     branches,
     oldBranches: all.filter((b) => !b.active),
     overlaps,
-    problems: findProblems(branches, overlaps, now),
+    problems: findProblems(branches, overlaps),
   };
 }

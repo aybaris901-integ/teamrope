@@ -75,23 +75,18 @@ describe("teamStatus", () => {
     });
   });
 
-  test("a stale branch is flagged; a day-old one is collapsed", async () => {
+  test("a quiet branch is not a problem; a day-old one is collapsed", async () => {
     const helper = helperClone("helper");
     pushBranchAt(helper, "olive/idea", 3);
     pushBranchAt(helper, "pat/old-idea", 50);
 
     const status = await teamStatus(pg.clone("alice"));
-    expect(status.problems).toContainEqual({
-      kind: "noRecentSave",
-      branch: "olive/idea",
-      owner: "olive",
-      hours: 3,
-    });
+    expect(status.problems.some((p) => p.kind !== "overlap" && p.branch === "olive/idea")).toBe(false);
     expect(status.oldBranches.map((b) => b.branch)).toEqual(["pat/old-idea"]);
     expect(status.branches.map((b) => b.branch)).not.toContain("pat/old-idea");
     const text = explainTeamStatus(status);
     expect(text).toContain("and 1 old branch (not shared for over a day)");
-    expect(text.join("\n")).toContain("olive hasn't shared olive/idea for 3 h.");
+    expect(text.join("\n")).toMatch(/olive\s+olive\/idea\s+3 h ago/);
   });
 
   test("a branch far behind main is flagged", async () => {
@@ -110,9 +105,11 @@ describe("teamStatus", () => {
 
   test("problems come most urgent first", async () => {
     const helper = helperClone("helper");
-    pushBranchAt(helper, "olive/idea", 3);
+    for (let i = 0; i < 5; i++) git(helper, "commit", "--quiet", "--allow-empty", "-m", `Main ${i}`);
+    git(helper, "push", "--quiet", "origin", "main");
     const status = await teamStatus(pg.clone("alice"));
-    expect(kinds(status.problems)).toEqual(["conflictWithMain", "overlap", "noRecentSave"]);
+    expect(kinds(status.problems).slice(0, 2)).toEqual(["conflictWithMain", "overlap"]);
+    expect(kinds(status.problems).at(-1)).toBe("farBehind");
   });
 
   test("a fresh repo with clean branches: no problems", async () => {

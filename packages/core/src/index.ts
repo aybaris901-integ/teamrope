@@ -106,7 +106,6 @@ export {
 export {
   ACTIVE_HOURS,
   FAR_BEHIND_COMMITS,
-  STALE_HOURS,
   teamStatus,
   type BranchOverlap,
   type MainConflict,

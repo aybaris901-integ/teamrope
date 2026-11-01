@@ -160,7 +160,7 @@ describe("involvesMe", () => {
   });
   test("team problems on my branch or with my name are mine; the rest aren't", () => {
     const mine = "carol/feature";
-    expect(involvesMe(team({ kind: "noRecentSave", branch: mine, owner: "carol", hours: 3 }), mine, "carol")).toBe(true);
+    expect(involvesMe(team({ kind: "farBehind", branch: mine, owner: "carol", behind: 6 }), mine, "carol")).toBe(true);
     expect(
       involvesMe(team({ kind: "overlap", overlap: { branches: ["alice/feature", mine], owners: ["alice", "carol"], files: ["a"] } }), mine, "carol"),
     ).toBe(true);
